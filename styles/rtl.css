@@ -1,0 +1,90 @@
+/* Arabic RTL Support */
+[dir="rtl"] {
+  direction: rtl;
+}
+
+/* Hero section: text on right, media on left */
+[dir="rtl"] .hero-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+[dir="rtl"] .ml-auto {
+  margin-left: unset;
+  margin-right: auto;
+}
+
+[dir="rtl"] .mr-auto {
+  margin-right: unset;
+  margin-left: auto;
+}
+
+[dir="rtl"] .pl-4 {
+  padding-left: unset;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .pr-4 {
+  padding-right: unset;
+  padding-left: 1rem;
+}
+
+[dir="rtl"] .flex-row-reverse {
+  flex-direction: row-reverse;
+}
+
+/* Notification positioning for RTL */
+[dir="rtl"] .fixed.right-4 {
+  right: unset;
+  left: 1rem;
+}
+
+[dir="rtl"] .fixed.left-4 {
+  left: unset;
+  right: 1rem;
+}
+
+/* Form field errors for RTL */
+[dir="rtl"] .inline-field-error {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Arabic font support - Cairo works for both Arabic and English */
+/* Cairo is applied globally in index.html */
+[lang="ar"],
+[lang="ar"] * {
+  font-family: Cairo, sans-serif;
+}
+
+.top-announcement-marquee {
+  display: flex;
+  width: max-content;
+  animation: topAnnouncementMarquee 24s linear infinite;
+}
+
+.top-announcement-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes topAnnouncementMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-announcement-marquee {
+    animation: none;
+  }
+}

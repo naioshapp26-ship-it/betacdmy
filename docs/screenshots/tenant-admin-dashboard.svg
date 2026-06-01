@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <rect width="800" height="450" fill="#f3f4f6" />
+  <rect x="40" y="40" width="720" height="370" fill="#ffffff" stroke="#d1d5db" stroke-width="2" />
+  <text x="400" y="220" font-family="Cairo, sans-serif" font-size="28" fill="#111827" text-anchor="middle">لوحة مدير الأكاديمية</text>
+</svg>

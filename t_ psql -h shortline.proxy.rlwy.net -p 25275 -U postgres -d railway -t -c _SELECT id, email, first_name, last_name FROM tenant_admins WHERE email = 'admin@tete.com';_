@@ -1,0 +1,7 @@
+                  id                  |      email      | first_name | last_name |              tenant_id               
+--------------------------------------+-----------------+------------+-----------+--------------------------------------
+ df2be9f5-f1b7-4c1f-bfdd-11ea61efc7ee | New@admin.com   | U          | U         | a4d709e0-29c9-4d81-b9fe-2e13f4df2b77
+ 80e6aef5-b722-42d9-bee0-216038f4f84f | info@bzzix.com  | tenant     | tenant    | 98a64e35-612b-4beb-bcde-e5e39392bcd6
+ ffd55fbb-cc6b-4097-8842-38eb54f4f576 | admin@reham.com | admin      | reham     | df5fb04a-92b6-472a-8894-6da832224061
+(3 rows)
+

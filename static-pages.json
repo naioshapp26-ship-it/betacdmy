@@ -1,0 +1,9 @@
+[
+  { "slug": "home", "title": "Home", "path": "/" },
+  { "slug": "services", "title": "Services", "path": "/services" },
+  { "slug": "about-us", "title": "About Us", "path": "/about-us" },
+  { "slug": "career", "title": "Career", "path": "/career" },
+  { "slug": "contact-us", "title": "Contact Us", "path": "/contact-us" },
+  { "slug": "tos", "title": "Terms of Service", "path": "/tos" },
+  { "slug": "privacy", "title": "Privacy Policy", "path": "/privacy" }
+]

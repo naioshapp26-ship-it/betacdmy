@@ -1,0 +1,23 @@
+                                Table "public.messages"
+     Column      |           Type           | Collation | Nullable |      Default      
+-----------------+--------------------------+-----------+----------+-------------------
+ id              | uuid                     |           | not null | gen_random_uuid()
+ conversation_id | uuid                     |           |          | 
+ sender_id       | uuid                     |           | not null | 
+ message         | text                     |           | not null | 
+ is_read         | boolean                  |           |          | false
+ created_at      | timestamp with time zone |           |          | now()
+ body            | text                     |           | not null | 
+ course_id       | uuid                     |           |          | 
+ target_user_id  | uuid                     |           |          | 
+ deleted_at      | timestamp with time zone |           |          | 
+ deleted_by      | uuid                     |           |          | 
+ metadata        | jsonb                    |           |          | '{}'::jsonb
+Indexes:
+    "messages_pkey" PRIMARY KEY, btree (id)
+    "idx_messages_conversation_created_at" btree (conversation_id, created_at DESC)
+Foreign-key constraints:
+    "messages_conversation_id_fkey" FOREIGN KEY (conversation_id) REFERENCES message_conversations(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "notifications" CONSTRAINT "notifications_target_message_id_fkey" FOREIGN KEY (target_message_id) REFERENCES messages(id) ON DELETE SET NULL
+

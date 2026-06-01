@@ -1,0 +1,1 @@
+const l={fallback:"/blog-placeholder.svg",blockedSources:["photo-1522742943744-208f894234d4"]}||{},o=l.fallback??"/blog-placeholder.svg",e=l.blockedSources??[],s=l=>!!l&&e.some(o=>l.includes(o)),c=(l,e)=>e||(!l||s(l)?o:l),a=l=>l?s(l)?"":l:"";export{o as B,c as r,a as s};

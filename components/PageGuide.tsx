@@ -1,0 +1,1959 @@
+/**
+ * PageGuide Component
+ * 
+ * A comprehensive guide system that appears on all pages, providing contextual help
+ * and explanations. Supports both English and Arabic with RTL layout.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { X, BookOpen, Info, Lightbulb, CheckCircle } from 'lucide-react';
+import { ViewState } from '../types';
+
+interface GuideContent {
+  title: string;
+  description: string;
+  sections: {
+    title: string;
+    icon: 'info' | 'lightbulb' | 'check';
+    items: string[];
+  }[];
+}
+
+interface GuideContentMap {
+  [key: string]: {
+    en: GuideContent;
+    ar: GuideContent;
+  };
+}
+
+// Guide content for each page
+const GUIDE_CONTENT: GuideContentMap = {
+  [ViewState.HOME]: {
+    en: {
+      title: 'Home Page Guide',
+      description: 'Welcome to your learning platform. This is your starting point.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Browse featured courses and latest announcements',
+            'Navigate to different sections using the top menu',
+            'Sign up or log in to access your dashboard'
+          ]
+        },
+        {
+          title: 'Important Buttons',
+          icon: 'check',
+          items: [
+            'Sign Up: Create a new account',
+            'Log In: Access your existing account',
+            'Courses: View all available courses'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use the language toggle to switch between English and Arabic',
+            'Explore services to see what we offer',
+            'Check the blog for latest updates and tutorials'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الصفحة الرئيسية',
+      description: 'مرحباً بك في منصة التعلم الخاصة بك. هذه هي نقطة البداية.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تصفح الدورات المميزة وأحدث الإعلانات',
+            'انتقل إلى أقسام مختلفة باستخدام القائمة العلوية',
+            'سجل الدخول أو أنشئ حساباً للوصول إلى لوحة التحكم'
+          ]
+        },
+        {
+          title: 'الأزرار المهمة',
+          icon: 'check',
+          items: [
+            'التسجيل: إنشاء حساب جديد',
+            'تسجيل الدخول: الوصول إلى حسابك الحالي',
+            'الدورات: عرض جميع الدورات المتاحة'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم مفتاح اللغة للتبديل بين الإنجليزية والعربية',
+            'استكشف الخدمات لمعرفة ما نقدمه',
+            'تحقق من المدونة للحصول على آخر التحديثات والدروس'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.COURSES]: {
+    en: {
+      title: 'Courses Page Guide',
+      description: 'Browse and explore all available courses.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View all courses with detailed information',
+            'Filter courses by category or level',
+            'Click on any course to see full details'
+          ]
+        },
+        {
+          title: 'Important Actions',
+          icon: 'check',
+          items: [
+            'Course Card: Click to view course details',
+            'Enroll Button: Start learning immediately',
+            'Filter Options: Narrow down your search'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Check course prerequisites before enrolling',
+            'Look for beginner-friendly courses if you are new',
+            'Save courses to your wishlist for later'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل صفحة الدورات',
+      description: 'تصفح واستكشف جميع الدورات المتاحة.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض جميع الدورات مع معلومات تفصيلية',
+            'تصفية الدورات حسب الفئة أو المستوى',
+            'انقر على أي دورة لرؤية التفاصيل الكاملة'
+          ]
+        },
+        {
+          title: 'الإجراءات المهمة',
+          icon: 'check',
+          items: [
+            'بطاقة الدورة: انقر لعرض تفاصيل الدورة',
+            'زر التسجيل: ابدأ التعلم فوراً',
+            'خيارات التصفية: تضييق نطاق البحث'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'تحقق من المتطلبات الأساسية قبل التسجيل',
+            'ابحث عن دورات للمبتدئين إذا كنت جديداً',
+            'احفظ الدورات في قائمة رغباتك للاطلاع عليها لاحقاً'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.DASHBOARD]: {
+    en: {
+      title: 'Dashboard Guide',
+      description: 'Your personal learning hub with all your activities.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View your enrolled courses and progress',
+            'Track your learning statistics and achievements',
+            'Access quick actions and notifications'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'My Courses: Continue where you left off',
+            'Progress Tracker: Monitor your learning journey',
+            'Rewards: View your credits and achievements'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Complete courses to earn more credits',
+            'Check notifications regularly for updates',
+            'Update your profile to personalize your experience'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل لوحة التحكم',
+      description: 'مركز التعلم الشخصي الخاص بك مع جميع أنشطتك.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض الدورات المسجلة والتقدم',
+            'تتبع إحصائيات التعلم والإنجازات',
+            'الوصول إلى الإجراءات السريعة والإشعارات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'دوراتي: استمر من حيث توقفت',
+            'متتبع التقدم: راقب رحلة التعلم الخاصة بك',
+            'المكافآت: عرض الاعتمادات والإنجازات'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'أكمل الدورات لكسب المزيد من الاعتمادات',
+            'تحقق من الإشعارات بانتظام للحصول على التحديثات',
+            'حدّث ملفك الشخصي لتخصيص تجربتك'
+          ]
+        }
+      ]
+    }
+  },
+  // Dashboard sub-pages
+  '/dashboard/students': {
+    en: {
+      title: 'Students Management Guide',
+      description: 'Manage and monitor your students effectively.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View all enrolled students and their information',
+            'Track student progress and performance',
+            'Manage student accounts and enrollments'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Student List: View and search students',
+            'Progress Tracking: Monitor learning progress',
+            'Actions: Edit, suspend, or remove students'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use filters to quickly find specific students',
+            'Export student data for reporting',
+            'Communicate with students through the messaging system'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل إدارة الطلاب',
+      description: 'إدارة ومراقبة طلابك بفعالية.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض جميع الطلاب المسجلين ومعلوماتهم',
+            'تتبع تقدم الطلاب وأدائهم',
+            'إدارة حسابات الطلاب والتسجيلات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'قائمة الطلاب: عرض والبحث عن الطلاب',
+            'تتبع التقدم: مراقبة تقدم التعلم',
+            'الإجراءات: تعديل، تعليق، أو إزالة الطلاب'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم المرشحات للعثور السريع على طلاب معينين',
+            'تصدير بيانات الطلاب لإعداد التقارير',
+            'التواصل مع الطلاب من خلال نظام المراسلة'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/courses': {
+    en: {
+      title: 'Courses Management Guide',
+      description: 'Create, edit, and manage your courses.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View all courses in your platform',
+            'Create new courses or edit existing ones',
+            'Manage course content, pricing, and availability'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Course Builder: Create and structure lessons',
+            'Content Management: Upload videos, files, and materials',
+            'Publishing: Control course visibility and access'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Organize courses with clear categories',
+            'Use compelling thumbnails and descriptions',
+            'Preview courses before publishing'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل إدارة الدورات',
+      description: 'إنشاء وتعديل وإدارة دوراتك.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض جميع الدورات في منصتك',
+            'إنشاء دورات جديدة أو تعديل الموجودة',
+            'إدارة محتوى الدورة والتسعير والتوفر'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'منشئ الدورة: إنشاء وتنظيم الدروس',
+            'إدارة المحتوى: تحميل الفيديوهات والملفات والمواد',
+            'النشر: التحكم في رؤية الدورة والوصول'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'نظم الدورات بفئات واضحة',
+            'استخدم صور مصغرة وأوصاف جذابة',
+            'معاينة الدورات قبل النشر'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/overview': {
+    en: {
+      title: 'Dashboard Overview Guide',
+      description: 'Get insights into your platform performance.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View key metrics and statistics',
+            'Monitor recent activities and trends',
+            'Access quick actions and shortcuts'
+          ]
+        },
+        {
+          title: 'Key Metrics',
+          icon: 'check',
+          items: [
+            'Active Students: Current enrolled students',
+            'Course Completion: Overall completion rates',
+            'Revenue: Financial performance overview'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Check the overview daily for important updates',
+            'Use charts to identify trends',
+            'Click on metrics for detailed reports'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل نظرة عامة على لوحة التحكم',
+      description: 'احصل على رؤى حول أداء منصتك.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض المقاييس والإحصائيات الرئيسية',
+            'مراقبة الأنشطة والاتجاهات الحديثة',
+            'الوصول إلى الإجراءات السريعة والاختصارات'
+          ]
+        },
+        {
+          title: 'المقاييس الرئيسية',
+          icon: 'check',
+          items: [
+            'الطلاب النشطون: الطلاب المسجلون حالياً',
+            'إكمال الدورة: معدلات الإكمال الإجمالية',
+            'الإيرادات: نظرة عامة على الأداء المالي'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'تحقق من النظرة العامة يومياً للتحديثات المهمة',
+            'استخدم الرسوم البيانية لتحديد الاتجاهات',
+            'انقر على المقاييس للحصول على تقارير تفصيلية'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/users': {
+    en: {
+      title: 'Users Management Guide',
+      description: 'Manage all platform users including instructors and admins.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View and manage all user accounts',
+            'Assign roles and permissions',
+            'Monitor user activity and status'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'User List: View all platform users',
+            'Role Management: Assign instructor or admin roles',
+            'Account Control: Activate, suspend, or delete users'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Regularly review user roles for security',
+            'Use bulk actions for efficiency',
+            'Keep user information up to date'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل إدارة المستخدمين',
+      description: 'إدارة جميع مستخدمي المنصة بما في ذلك المدرسين والمسؤولين.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض وإدارة جميع حسابات المستخدمين',
+            'تعيين الأدوار والصلاحيات',
+            'مراقبة نشاط المستخدم والحالة'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'قائمة المستخدمين: عرض جميع مستخدمي المنصة',
+            'إدارة الأدوار: تعيين أدوار المدرس أو المسؤول',
+            'التحكم في الحساب: تفعيل، تعليق، أو حذف المستخدمين'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'راجع أدوار المستخدمين بانتظام للأمان',
+            'استخدم الإجراءات الجماعية لزيادة الكفاءة',
+            'حافظ على تحديث معلومات المستخدم'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/messages': {
+    en: {
+      title: 'Messages Guide',
+      description: 'Communicate with students and instructors.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Send and receive messages',
+            'Create announcements for all users',
+            'Manage conversation threads'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Inbox: View received messages',
+            'Compose: Send new messages',
+            'Announcements: Broadcast to multiple users'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use announcements for important updates',
+            'Respond to student queries promptly',
+            'Archive old conversations to stay organized'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الرسائل',
+      description: 'التواصل مع الطلاب والمدرسين.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'إرسال واستقبال الرسائل',
+            'إنشاء إعلانات لجميع المستخدمين',
+            'إدارة سلاسل المحادثات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'البريد الوارد: عرض الرسائل المستلمة',
+            'إنشاء: إرسال رسائل جديدة',
+            'الإعلانات: البث لعدة مستخدمين'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم الإعلانات للتحديثات المهمة',
+            'الرد على استفسارات الطلاب بسرعة',
+            'أرشف المحادثات القديمة للبقاء منظماً'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/assignments': {
+    en: {
+      title: 'Assignments Guide',
+      description: 'Create and manage course assignments.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Create assignments for your courses',
+            'Review and grade student submissions',
+            'Track assignment completion rates'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Assignment Builder: Create new assignments',
+            'Grading: Review and score submissions',
+            'Due Dates: Set deadlines for assignments'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Provide clear instructions and rubrics',
+            'Set reasonable deadlines for students',
+            'Give constructive feedback on submissions'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الواجبات',
+      description: 'إنشاء وإدارة واجبات الدورة.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'إنشاء واجبات لدوراتك',
+            'مراجعة وتقييم تقديمات الطلاب',
+            'تتبع معدلات إكمال الواجبات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'منشئ الواجبات: إنشاء واجبات جديدة',
+            'التقييم: مراجعة وتسجيل التقديمات',
+            'تواريخ الاستحقاق: تحديد المواعيد النهائية'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'قدم تعليمات ومعايير واضحة',
+            'حدد مواعيد نهائية معقولة للطلاب',
+            'قدم ملاحظات بناءة على التقديمات'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/certificates': {
+    en: {
+      title: 'Certificates Guide',
+      description: 'Manage course completion certificates.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Design and customize certificate templates',
+            'Issue certificates to students',
+            'Track certificate distribution'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Template Designer: Customize certificate appearance',
+            'Auto-Issue: Automatically award on course completion',
+            'Certificate Verification: Validate issued certificates'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Include course name and completion date',
+            'Add your organization logo for branding',
+            'Use a unique certificate ID for verification'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الشهادات',
+      description: 'إدارة شهادات إكمال الدورات.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تصميم وتخصيص قوالب الشهادات',
+            'إصدار الشهادات للطلاب',
+            'تتبع توزيع الشهادات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'مصمم القوالب: تخصيص مظهر الشهادة',
+            'الإصدار التلقائي: منح تلقائي عند إكمال الدورة',
+            'التحقق من الشهادة: التحقق من الشهادات الصادرة'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'ضمّن اسم الدورة وتاريخ الإكمال',
+            'أضف شعار مؤسستك للعلامة التجارية',
+            'استخدم معرف شهادة فريد للتحقق'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/reports': {
+    en: {
+      title: 'Reports Guide',
+      description: 'Generate and analyze platform reports.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View comprehensive analytics and reports',
+            'Track key performance indicators',
+            'Export data for further analysis'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Dashboard Analytics: Overview of key metrics',
+            'Custom Reports: Generate specific reports',
+            'Data Export: Download reports in various formats'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Review reports regularly to identify trends',
+            'Compare data across different time periods',
+            'Use insights to improve course content'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل التقارير',
+      description: 'إنشاء وتحليل تقارير المنصة.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض التحليلات والتقارير الشاملة',
+            'تتبع مؤشرات الأداء الرئيسية',
+            'تصدير البيانات لمزيد من التحليل'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'تحليلات لوحة التحكم: نظرة عامة على المقاييس الرئيسية',
+            'التقارير المخصصة: إنشاء تقارير محددة',
+            'تصدير البيانات: تنزيل التقارير بتنسيقات مختلفة'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'راجع التقارير بانتظام لتحديد الاتجاهات',
+            'قارن البيانات عبر فترات زمنية مختلفة',
+            'استخدم الرؤى لتحسين محتوى الدورة'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/settings': {
+    en: {
+      title: 'Settings Guide',
+      description: 'Configure your platform settings and preferences.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Customize platform appearance and branding',
+            'Configure payment and integration settings',
+            'Manage security and privacy options'
+          ]
+        },
+        {
+          title: 'Key Settings',
+          icon: 'check',
+          items: [
+            'General: Platform name, logo, and contact info',
+            'Payment: Setup payment gateways',
+            'Security: Configure authentication and permissions'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Test changes in a safe environment first',
+            'Keep backup of important configurations',
+            'Review security settings regularly'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الإعدادات',
+      description: 'تكوين إعدادات وتفضيلات منصتك.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تخصيص مظهر المنصة والعلامة التجارية',
+            'تكوين إعدادات الدفع والتكامل',
+            'إدارة خيارات الأمان والخصوصية'
+          ]
+        },
+        {
+          title: 'الإعدادات الرئيسية',
+          icon: 'check',
+          items: [
+            'عام: اسم المنصة والشعار ومعلومات الاتصال',
+            'الدفع: إعداد بوابات الدفع',
+            'الأمان: تكوين المصادقة والصلاحيات'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'اختبر التغييرات في بيئة آمنة أولاً',
+            'احتفظ بنسخة احتياطية من التكوينات المهمة',
+            'راجع إعدادات الأمان بانتظام'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/offers': {
+    en: {
+      title: 'Offers Management Guide',
+      description: 'Create and manage discount offers and promotions for your courses.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Create discount codes for courses',
+            'Monitor offer usage and effectiveness',
+            'Set expiration dates and usage limits'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Discount Codes: Create percentage or fixed-amount discounts',
+            'Course-Specific: Apply offers to specific courses',
+            'Analytics: Track redemption rates and revenue impact'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use time-limited offers to create urgency',
+            'Monitor usage to prevent abuse',
+            'Consider seasonal promotions for better engagement'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل إدارة العروض',
+      description: 'إنشاء وإدارة عروض الخصم والعروض الترويجية للدورات الخاصة بك.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'إنشاء رموز خصم للدورات',
+            'مراقبة استخدام وفعالية العروض',
+            'تعيين تواريخ انتهاء الصلاحية وحدود الاستخدام'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'رموز الخصم: إنشاء خصومات بالنسبة المئوية أو بمبلغ ثابت',
+            'خاص بالدورة: تطبيق العروض على دورات محددة',
+            'التحليلات: تتبع معدلات الاسترداد وتأثير الإيرادات'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم عروضاً محدودة الوقت لخلق الإلحاح',
+            'راقب الاستخدام لمنع سوء الاستخدام',
+            'فكّر في العروض الموسمية لمشاركة أفضل'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/credits': {
+    en: {
+      title: 'Credits System Guide',
+      description: 'Manage student credits and reward system.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View and manage student credit balances',
+            'Grant credits for achievements and milestones',
+            'Track credit transactions and redemptions'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Credit Management: Award or deduct credits',
+            'Transaction History: View all credit movements',
+            'Redemption Options: Set up rewards and benefits'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use credits to incentivize course completion',
+            'Set clear redemption rules for students',
+            'Monitor credit economy to maintain balance'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل نظام الرصيد',
+      description: 'إدارة رصيد الطلاب ونظام المكافآت.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض وإدارة أرصدة الطلاب',
+            'منح الرصيد للإنجازات والمعالم',
+            'تتبع معاملات واستردادات الرصيد'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'إدارة الرصيد: منح أو خصم الرصيد',
+            'سجل المعاملات: عرض جميع حركات الرصيد',
+            'خيارات الاسترداد: إعداد المكافآت والفوائد'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم الرصيد لتحفيز إكمال الدورات',
+            'حدد قواعد استرداد واضحة للطلاب',
+            'راقب اقتصاد الرصيد للحفاظ على التوازن'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/financial': {
+    en: {
+      title: 'Financial Reports Guide',
+      description: 'Track payments, revenues, and financial performance.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'View detailed financial reports and analytics',
+            'Track course payments and student balances',
+            'Monitor revenue trends and payment methods'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Payment Records: Track all incoming payments',
+            'Revenue Analytics: View earnings by course and period',
+            'Balance Reports: Monitor outstanding payments'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Export reports for accounting purposes',
+            'Review payment trends regularly',
+            'Follow up on outstanding balances promptly'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل التقارير المالية',
+      description: 'تتبع المدفوعات والإيرادات والأداء المالي.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'عرض التقارير المالية التفصيلية والتحليلات',
+            'تتبع مدفوعات الدورات وأرصدة الطلاب',
+            'مراقبة اتجاهات الإيرادات وطرق الدفع'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'سجلات الدفع: تتبع جميع المدفوعات الواردة',
+            'تحليلات الإيرادات: عرض الأرباح حسب الدورة والفترة',
+            'تقارير الأرصدة: مراقبة المدفوعات المستحقة'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'تصدير التقارير لأغراض المحاسبة',
+            'راجع اتجاهات الدفع بانتظام',
+            'تابع الأرصدة المستحقة بسرعة'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/attendance': {
+    en: {
+      title: 'Attendance Tracking Guide',
+      description: 'Monitor student attendance and engagement.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Track student attendance for live classes',
+            'View engagement metrics and participation rates',
+            'Generate attendance reports for courses'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Attendance Records: Mark present, absent, or late',
+            'Session Tracking: Monitor duration and activity',
+            'Reports: Export attendance data for analysis'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Regular attendance tracking improves accountability',
+            'Use attendance data to identify struggling students',
+            'Set clear attendance policies and communicate them'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل تتبع الحضور',
+      description: 'مراقبة حضور ومشاركة الطلاب.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تتبع حضور الطلاب للفصول المباشرة',
+            'عرض مقاييس المشاركة ومعدلات الحضور',
+            'إنشاء تقارير الحضور للدورات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'سجلات الحضور: وضع علامة حاضر أو غائب أو متأخر',
+            'تتبع الجلسات: مراقبة المدة والنشاط',
+            'التقارير: تصدير بيانات الحضور للتحليل'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'تتبع الحضور المنتظم يحسن المساءلة',
+            'استخدم بيانات الحضور لتحديد الطلاب المتعثرين',
+            'ضع سياسات حضور واضحة وتواصل بها'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/live': {
+    en: {
+      title: 'Live Classes Guide',
+      description: 'Schedule and manage live video classes.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Schedule live classes with students',
+            'Integrate with video platforms (Zoom, Meet, SMRRTX)',
+            'Manage class recordings and replays'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Class Scheduling: Set date, time, and duration',
+            'Platform Integration: Connect your video conferencing',
+            'Invitations: Send links to specific students or all'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Test your video setup before the first class',
+            'Share class materials in advance',
+            'Record sessions for students who miss the live event'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الفصول المباشرة',
+      description: 'جدولة وإدارة الفصول المباشرة عبر الفيديو.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'جدولة الفصول المباشرة مع الطلاب',
+            'التكامل مع منصات الفيديو (Zoom، Meet، SMRRTX)',
+            'إدارة تسجيلات وإعادات الفصول'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'جدولة الفصول: تحديد التاريخ والوقت والمدة',
+            'تكامل المنصة: ربط مؤتمرات الفيديو الخاصة بك',
+            'الدعوات: إرسال الروابط لطلاب محددين أو للجميع'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'اختبر إعداد الفيديو قبل الفصل الأول',
+            'شارك مواد الفصل مسبقاً',
+            'سجل الجلسات للطلاب الذين يفوتهم الحدث المباشر'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/blog': {
+    en: {
+      title: 'Blog Management Guide',
+      description: 'Create and manage blog posts and articles.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Create, edit, and publish blog posts',
+            'Manage post categories and featured content',
+            'Add images and videos to enhance posts'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Rich Editor: Format text, add media, and links',
+            'SEO Settings: Optimize posts for search engines',
+            'Draft System: Save and review before publishing'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use compelling titles to attract readers',
+            'Add relevant images to make posts visually appealing',
+            'Publish regularly to keep audience engaged'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل إدارة المدونة',
+      description: 'إنشاء وإدارة منشورات ومقالات المدونة.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'إنشاء وتحرير ونشر منشورات المدونة',
+            'إدارة فئات المنشورات والمحتوى المميز',
+            'إضافة الصور ومقاطع الفيديو لتحسين المنشورات'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'محرر غني: تنسيق النص وإضافة الوسائط والروابط',
+            'إعدادات SEO: تحسين المنشورات لمحركات البحث',
+            'نظام المسودة: الحفظ والمراجعة قبل النشر'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم عناوين جذابة لجذب القراء',
+            'أضف صوراً ذات صلة لجعل المنشورات جذابة بصرياً',
+            'انشر بانتظام للحفاظ على تفاعل الجمهور'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/pages': {
+    en: {
+      title: 'Static Pages Guide',
+      description: 'Manage static content pages like About, Contact, etc.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Edit static pages like About Us, Privacy Policy',
+            'Customize page content with rich text editor',
+            'Manage page visibility and access'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Page Editor: Update page content easily',
+            'Slug Management: Set URL-friendly page identifiers',
+            'Multi-language: Support for English and Arabic'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Keep legal pages up-to-date with regulations',
+            'Use clear, simple language for better understanding',
+            'Review pages periodically for accuracy'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الصفحات الثابتة',
+      description: 'إدارة صفحات المحتوى الثابت مثل من نحن، اتصل بنا، إلخ.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تحرير الصفحات الثابتة مثل من نحن وسياسة الخصوصية',
+            'تخصيص محتوى الصفحة بمحرر نص غني',
+            'إدارة رؤية الصفحة والوصول'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'محرر الصفحة: تحديث محتوى الصفحة بسهولة',
+            'إدارة المعرّف: تعيين معرّفات صفحة صديقة لعنوان URL',
+            'متعدد اللغات: دعم الإنجليزية والعربية'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'حافظ على تحديث الصفحات القانونية مع اللوائح',
+            'استخدم لغة واضحة وبسيطة للفهم الأفضل',
+            'راجع الصفحات بشكل دوري للتأكد من الدقة'
+          ]
+        }
+      ]
+    }
+  },
+  '/dashboard/seo': {
+    en: {
+      title: 'SEO Settings Guide',
+      description: 'Optimize your platform for search engines.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Configure SEO settings for all pages',
+            'Set meta titles, descriptions, and keywords',
+            'Manage Open Graph and Twitter Card settings'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Meta Tags: Optimize titles and descriptions',
+            'Social Sharing: Configure OG and Twitter cards',
+            'Advanced: Set canonical URLs, robots, sitemaps'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Use unique, descriptive titles for each page',
+            'Keep meta descriptions under 160 characters',
+            'Test social sharing previews before publishing'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل إعدادات SEO',
+      description: 'تحسين منصتك لمحركات البحث.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تكوين إعدادات SEO لجميع الصفحات',
+            'تعيين عناوين ميتا والأوصاف والكلمات المفتاحية',
+            'إدارة إعدادات Open Graph وTwitter Card'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'علامات ميتا: تحسين العناوين والأوصاف',
+            'المشاركة الاجتماعية: تكوين بطاقات OG وTwitter',
+            'متقدم: تعيين عناوين URL الأساسية والروبوتات وخرائط الموقع'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'استخدم عناوين فريدة ووصفية لكل صفحة',
+            'اجعل أوصاف ميتا أقل من 160 حرفاً',
+            'اختبر معاينات المشاركة الاجتماعية قبل النشر'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.INSTRUCTOR_PROFILE]: {
+    en: {
+      title: 'Instructor Profile Guide',
+      description: 'Manage your instructor profile and credentials.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Update your professional information',
+            'Add certifications and portfolio links',
+            'Customize your public profile appearance'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Bio & Expertise: Share your background',
+            'Certifications: Upload proof of credentials',
+            'Social Links: Connect your professional network'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Keep your profile updated and professional',
+            'Highlight your unique expertise and experience',
+            'Add a professional photo for better recognition'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل ملف المدرب',
+      description: 'إدارة ملف المدرب الخاص بك وبيانات الاعتماد.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تحديث معلوماتك المهنية',
+            'إضافة الشهادات وروابط المحفظة',
+            'تخصيص مظهر ملفك العام'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'السيرة والخبرة: شارك خلفيتك',
+            'الشهادات: تحميل إثبات بيانات الاعتماد',
+            'الروابط الاجتماعية: ربط شبكتك المهنية'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'حافظ على تحديث ملفك بشكل احترافي',
+            'أبرز خبرتك وتجربتك الفريدة',
+            'أضف صورة احترافية للتعريف الأفضل'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.BLOG]: {
+    en: {
+      title: 'Blog Page Guide',
+      description: 'Explore articles and educational content.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Browse latest blog posts and articles',
+            'Filter content by category or topic',
+            'Read featured posts and important news'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Article List: Browse all published posts',
+            'Search & Filter: Find content by topic',
+            'Featured Posts: Highlighted important articles'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Subscribe to notifications for new posts',
+            'Share interesting articles with others',
+            'Check back regularly for fresh content'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل صفحة المدونة',
+      description: 'استكشف المقالات والمحتوى التعليمي.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تصفح أحدث منشورات ومقالات المدونة',
+            'تصفية المحتوى حسب الفئة أو الموضوع',
+            'قراءة المنشورات المميزة والأخبار المهمة'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'قائمة المقالات: تصفح جميع المنشورات المنشورة',
+            'البحث والتصفية: العثور على المحتوى حسب الموضوع',
+            'المنشورات المميزة: المقالات المهمة المميزة'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'اشترك في الإشعارات للمنشورات الجديدة',
+            'شارك المقالات المثيرة للاهتمام مع الآخرين',
+            'تحقق بانتظام من المحتوى الجديد'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.SERVICES]: {
+    en: {
+      title: 'Services Page Guide',
+      description: 'Discover the services and offerings available.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Explore available services and features',
+            'Learn about platform capabilities',
+            'Find services that match your needs'
+          ]
+        },
+        {
+          title: 'Key Features',
+          icon: 'check',
+          items: [
+            'Service Cards: Overview of each offering',
+            'Detailed Descriptions: Learn what each service provides',
+            'Contact Info: Get in touch for more details'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Review all services to maximize platform benefits',
+            'Contact support for customized solutions',
+            'Check for new services and updates regularly'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل صفحة الخدمات',
+      description: 'اكتشف الخدمات والعروض المتاحة.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'استكشف الخدمات والميزات المتاحة',
+            'تعرف على قدرات المنصة',
+            'ابحث عن الخدمات التي تتناسب مع احتياجاتك'
+          ]
+        },
+        {
+          title: 'الميزات الرئيسية',
+          icon: 'check',
+          items: [
+            'بطاقات الخدمة: نظرة عامة على كل عرض',
+            'أوصاف مفصلة: تعرّف على ما تقدمه كل خدمة',
+            'معلومات الاتصال: تواصل للحصول على مزيد من التفاصيل'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'راجع جميع الخدمات لتعظيم فوائد المنصة',
+            'اتصل بالدعم للحصول على حلول مخصصة',
+            'تحقق من الخدمات والتحديثات الجديدة بانتظام'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.STUDENT_PROFILE]: {
+    en: {
+      title: 'Student Profile Guide',
+      description: 'Manage your personal information and learning preferences.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Update your personal information',
+            'Manage account settings and preferences',
+            'View your learning history and certificates'
+          ]
+        },
+        {
+          title: 'Available Actions',
+          icon: 'check',
+          items: [
+            'Edit Profile: Update your information',
+            'Change Password: Secure your account',
+            'Download Certificates: Save your achievements'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Keep your email updated for important notifications',
+            'Add a profile picture to personalize your account',
+            'Review your privacy settings regularly'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الملف الشخصي للطالب',
+      description: 'إدارة معلوماتك الشخصية وتفضيلات التعلم.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'تحديث معلوماتك الشخصية',
+            'إدارة إعدادات الحساب والتفضيلات',
+            'عرض سجل التعلم والشهادات'
+          ]
+        },
+        {
+          title: 'الإجراءات المتاحة',
+          icon: 'check',
+          items: [
+            'تعديل الملف الشخصي: تحديث معلوماتك',
+            'تغيير كلمة المرور: تأمين حسابك',
+            'تنزيل الشهادات: احفظ إنجازاتك'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'حافظ على تحديث بريدك الإلكتروني للإشعارات المهمة',
+            'أضف صورة الملف الشخصي لتخصيص حسابك',
+            'راجع إعدادات الخصوصية بانتظام'
+          ]
+        }
+      ]
+    }
+  },
+  [ViewState.COURSE_PLAYER]: {
+    en: {
+      title: 'Course Player Guide',
+      description: 'Learn at your own pace with our interactive course player.',
+      sections: [
+        {
+          title: 'Page Overview',
+          icon: 'info',
+          items: [
+            'Watch video lessons and read course materials',
+            'Navigate between lessons using the sidebar',
+            'Track your progress through the course'
+          ]
+        },
+        {
+          title: 'Player Controls',
+          icon: 'check',
+          items: [
+            'Play/Pause: Control video playback',
+            'Next/Previous: Navigate between lessons',
+            'Mark Complete: Track your progress'
+          ]
+        },
+        {
+          title: 'Tips & Notes',
+          icon: 'lightbulb',
+          items: [
+            'Take notes while watching for better retention',
+            'Complete quizzes to test your understanding',
+            'Download resources for offline review'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل مشغل الدورة',
+      description: 'تعلم بالسرعة التي تناسبك مع مشغل الدورة التفاعلي.',
+      sections: [
+        {
+          title: 'نظرة عامة على الصفحة',
+          icon: 'info',
+          items: [
+            'شاهد دروس الفيديو واقرأ مواد الدورة',
+            'انتقل بين الدروس باستخدام الشريط الجانبي',
+            'تتبع تقدمك خلال الدورة'
+          ]
+        },
+        {
+          title: 'عناصر التحكم',
+          icon: 'check',
+          items: [
+            'تشغيل/إيقاف: التحكم في تشغيل الفيديو',
+            'التالي/السابق: التنقل بين الدروس',
+            'وضع علامة مكتمل: تتبع تقدمك'
+          ]
+        },
+        {
+          title: 'نصائح وملاحظات',
+          icon: 'lightbulb',
+          items: [
+            'دوّن الملاحظات أثناء المشاهدة لتحسين الاحتفاظ',
+            'أكمل الاختبارات لاختبار فهمك',
+            'قم بتنزيل الموارد للمراجعة دون اتصال'
+          ]
+        }
+      ]
+    }
+  },
+  DEFAULT: {
+    en: {
+      title: 'Page Guide',
+      description: 'Get help and tips for using this page effectively.',
+      sections: [
+        {
+          title: 'About This Page',
+          icon: 'info',
+          items: [
+            'This page is part of your learning platform',
+            'Navigate using the menu and buttons',
+            'Contact support if you need help'
+          ]
+        },
+        {
+          title: 'General Tips',
+          icon: 'lightbulb',
+          items: [
+            'Use the language toggle to switch languages',
+            'Check your notifications regularly',
+            'Explore all features to get the most out of the platform'
+          ]
+        }
+      ]
+    },
+    ar: {
+      title: 'دليل الصفحة',
+      description: 'احصل على المساعدة والنصائح لاستخدام هذه الصفحة بفعالية.',
+      sections: [
+        {
+          title: 'حول هذه الصفحة',
+          icon: 'info',
+          items: [
+            'هذه الصفحة جزء من منصة التعلم الخاصة بك',
+            'التنقل باستخدام القائمة والأزرار',
+            'اتصل بالدعم إذا كنت بحاجة إلى مساعدة'
+          ]
+        },
+        {
+          title: 'نصائح عامة',
+          icon: 'lightbulb',
+          items: [
+            'استخدم مفتاح اللغة للتبديل بين اللغات',
+            'تحقق من إشعاراتك بانتظام',
+            'استكشف جميع الميزات للاستفادة القصوى من المنصة'
+          ]
+        }
+      ]
+    }
+  }
+};
+
+interface PageGuideProps {
+  currentView: ViewState;
+  currentPath?: string;
+  language: 'en' | 'ar';
+  buttonTopClassName?: string;
+}
+
+export const PageGuide: React.FC<PageGuideProps> = ({ currentView, currentPath, language, buttonTopClassName = 'top-20 sm:top-24' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const dir = language === 'ar' ? 'rtl' : 'ltr';
+  const isRTL = language === 'ar';
+
+  // Get guide content for current page
+  const getGuideContent = (): GuideContent => {
+    // Check for specific dashboard sub-pages first
+    if (currentPath && currentView === ViewState.DASHBOARD) {
+      const pathKey = currentPath; // e.g., '/dashboard/students'
+      if (GUIDE_CONTENT[pathKey]) {
+        return GUIDE_CONTENT[pathKey][language];
+      }
+    }
+    
+    // Fall back to view-based content
+    const pageContent = GUIDE_CONTENT[currentView] || GUIDE_CONTENT.DEFAULT;
+    return pageContent[language];
+  };
+
+  const content = getGuideContent();
+
+  // Handle opening the panel
+  const openPanel = () => {
+    setIsOpen(true);
+    // Small delay to trigger animation after mount
+    setTimeout(() => setIsAnimating(true), 10);
+  };
+
+  // Handle closing the panel
+  const closePanel = () => {
+    setIsAnimating(false);
+    setTimeout(() => setIsOpen(false), 300); // Wait for animation
+  };
+
+  // Prevent body scroll when panel is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  // Get icon component based on type
+  const getIcon = (iconType: 'info' | 'lightbulb' | 'check') => {
+    switch (iconType) {
+      case 'info':
+        return <Info className="h-5 w-5" />;
+      case 'lightbulb':
+        return <Lightbulb className="h-5 w-5" />;
+      case 'check':
+        return <CheckCircle className="h-5 w-5" />;
+    }
+  };
+
+  return (
+    <>
+      {/* Guide Button - Fixed Position */}
+      <button
+        onClick={openPanel}
+        className={`fixed ${isRTL ? 'right-4' : 'left-4'} ${buttonTopClassName} z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-red-800 to-red-900 px-4 py-2.5 text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2`}
+        aria-label={language === 'ar' ? 'فتح الدليل' : 'Open Guide'}
+        title={language === 'ar' ? 'دليل الصفحة' : 'Page Guide'}
+      >
+        <BookOpen className="h-5 w-5" />
+        <span className="font-semibold text-sm whitespace-nowrap">
+          {language === 'ar' ? 'دليل' : 'Guide'}
+        </span>
+      </button>
+
+      {/* Overlay */}
+      {isOpen && (
+        <div
+          className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${
+            isAnimating ? 'bg-opacity-50' : 'bg-opacity-0'
+          }`}
+          onClick={closePanel}
+        />
+      )}
+
+      {/* Side Panel */}
+      {isOpen && (
+        <div
+          className={`fixed top-0 ${isRTL ? 'right-0' : 'left-0'} z-50 h-full w-full sm:w-[480px] bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${
+            isAnimating ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'
+          } overflow-y-auto`}
+          dir={dir}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="sticky top-0 z-10 bg-gradient-to-r from-red-800 to-red-900 px-6 py-5 shadow-md">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-white/20 p-2">
+                  <BookOpen className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{content.title}</h2>
+                  <p className="text-sm text-red-100 mt-0.5">{content.description}</p>
+                </div>
+              </div>
+              <button
+                onClick={closePanel}
+                className="rounded-full p-2 text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white"
+                aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 py-6 space-y-6">
+            {content.sections.map((section, index) => (
+              <div
+                key={index}
+                className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`rounded-full p-2 ${
+                    section.icon === 'info' ? 'bg-blue-100 text-blue-600' :
+                    section.icon === 'lightbulb' ? 'bg-yellow-100 text-yellow-600' :
+                    'bg-green-100 text-green-600'
+                  }`}>
+                    {getIcon(section.icon)}
+                  </div>
+                  <h3 className="text-lg font-bold text-zinc-900">{section.title}</h3>
+                </div>
+                <ul className="space-y-3">
+                  {section.items.map((item, itemIndex) => (
+                    <li
+                      key={itemIndex}
+                      className="flex items-start gap-3 text-sm text-zinc-700"
+                    >
+                      <span className={`mt-0.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                        section.icon === 'info' ? 'bg-blue-500' :
+                        section.icon === 'lightbulb' ? 'bg-yellow-500' :
+                        'bg-green-500'
+                      }`} />
+                      <span className="leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
+            {/* Additional Help */}
+            <div className="mt-8 rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100 p-5 border border-zinc-200">
+              <p className="text-sm text-zinc-600 leading-relaxed">
+                {language === 'ar' 
+                  ? 'هل تحتاج إلى مساعدة إضافية؟ لا تتردد في الاتصال بفريق الدعم لدينا. نحن هنا لمساعدتك!'
+                  : 'Need more help? Feel free to contact our support team. We\'re here to assist you!'
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default PageGuide;

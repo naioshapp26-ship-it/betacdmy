@@ -1,0 +1,7 @@
+{
+  "name": "Betacademy SaaS",
+  "description": "A comprehensive white-label LMS and Academy platform with AI-powered tutoring, grading, and CRM features.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

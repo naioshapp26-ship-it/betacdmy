@@ -1,0 +1,1 @@
+import{C as o}from"./index-DmbdAh_B.js";const n=t=>{var r;if(typeof t!="string")return;const i=t.trim().toUpperCase();if(i)return(r=o.find(e=>e.code===i))==null?void 0:r.dialCode},a=(t,i)=>{const r=typeof t=="string"?t.trim():"";if(!r)return"";if(r.startsWith("+"))return r;const e=n(i);return!e||r.startsWith(e)?r:`${e} ${r}`};export{a as f,n as g};

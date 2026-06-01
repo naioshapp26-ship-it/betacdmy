@@ -1,0 +1,1 @@
+import{o as t}from"./index-BDcwhEVX.js";const r=r=>{var i;if("string"!=typeof r)return;const o=r.trim().toUpperCase();return o?null==(i=t.find(t=>t.code===o))?void 0:i.dialCode:void 0},i=(t,i)=>{const o="string"==typeof t?t.trim():"";if(!o)return"";if(o.startsWith("+"))return o;const s=r(i);return s?o.startsWith(s)?o:`${s} ${o}`:o};export{i as f,r as g};
