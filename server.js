@@ -350,9 +350,19 @@ const buildSitemapXml = (entries) => {
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${items.join('')}</urlset>`;
 };
 
-await runCentralMigrations();
-await runDefaultTenantMigrations();
-await sanitizeExistingBlogImages();
+try {
+  await runCentralMigrations();
+  await runDefaultTenantMigrations();
+  await sanitizeExistingBlogImages();
+} catch (startupError) {
+  console.error('');
+  console.error('=== BETACADEMY STARTUP FAILED ===');
+  console.error('Database connection or migration error.');
+  console.error(startupError?.message || startupError);
+  console.error('');
+  console.error('Railway: verify PostgreSQL is linked (Variables → DATABASE_URL reference).');
+  process.exit(1);
+}
 
 const app = express();
 // cPanel يمرّر PORT ديناميكياً — لا تثبّته في .env

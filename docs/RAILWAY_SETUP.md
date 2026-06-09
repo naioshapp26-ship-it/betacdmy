@@ -133,6 +133,39 @@ The project structure is correct:
 
 ## Troubleshooting
 
+### 502 Bad Gateway — "Application failed to respond"
+
+This means the app **crashed on startup** before Railway could reach it.
+
+**Most common cause:** PostgreSQL is not linked to the web service.
+
+**Fix (5 minutes):**
+
+1. Railway project → confirm a **PostgreSQL** service exists
+2. Open **betacdmy** (web) service → **Variables**
+3. Click **+ New Variable** → **Add Reference**
+4. Select **Postgres** → choose **`DATABASE_URL`**
+5. Also set manually:
+   ```
+   NODE_ENV=production
+   JWT_SECRET=<random string>
+   TENANT_DB_ENCRYPTION_KEY=<32-byte hex>
+   ```
+6. **Deployments → Redeploy**
+
+**Verify in Deploy Logs:** you should see:
+```
+[Startup] Database URL configured
+[Startup] PORT: <number>
+Server is running on 0.0.0.0:<port>
+```
+
+If logs show `No database URL configured` → PostgreSQL reference is missing.
+
+If logs show `Connection terminated` or migration errors → delete old Postgres and create a new one, then re-link `DATABASE_URL`.
+
+---
+
 ### Build fails with out-of-memory
 
 Railway may need more memory for the Vite build. The build script already sets:

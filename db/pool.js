@@ -11,7 +11,9 @@ const { Pool } = pg;
 const connectionString = process.env.TENANT_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error('No tenant database connection configured. Set TENANT_DATABASE_URL or DATABASE_URL in your environment.');
+  throw new Error(
+    'No tenant database connection configured. Set DATABASE_URL or TENANT_DATABASE_URL (Railway: link PostgreSQL via Variables → Add Reference).'
+  );
 }
 
 const isLocalConnection = /localhost|127\.0\.0\.1/i.test(connectionString);

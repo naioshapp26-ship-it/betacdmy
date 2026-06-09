@@ -28,7 +28,9 @@ const resolveConnectionString = () => {
 const connectionString = resolveConnectionString();
 
 if (!connectionString) {
-  throw new Error('CENTRAL_DATABASE_URL is not configured. Set it (or PROVISIONING_ADMIN_DATABASE_URL) in your environment.');
+  throw new Error(
+    'No database URL configured. Set DATABASE_URL or CENTRAL_DATABASE_URL (Railway: link PostgreSQL via Variables → Add Reference).'
+  );
 }
 const isLocalConnection = /localhost|127\.0\.0\.1/i.test(connectionString);
 const shouldUseSSL = process.env.PGSSL ? process.env.PGSSL === 'true' : !isLocalConnection;
