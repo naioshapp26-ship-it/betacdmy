@@ -134,7 +134,7 @@ const sendTenantErrorPage = (res, statusCode, title, message, additionalInfo) =>
         ${additionalInfo ? `<div class="additional-info">${additionalInfo}</div>` : ''}
         <div class="contact-section">
             <p class="contact-text">يرجى التواصل معنا للحصول على مزيد من المعلومات</p>
-            <a href="https://betacdmy.com.vendoworld.com/contact-us" class="contact-button">تواصل معنا</a>
+            <a href="https://www.betacdmy.com/contact-us" class="contact-button">تواصل معنا</a>
         </div>
     </div>
 </body>
@@ -146,7 +146,7 @@ export const extractSubdomain = (host) => {
     if (!host)
         return null;
     const hostname = host.split(':')[0].toLowerCase();
-    const mainDomain = (process.env.MAIN_DOMAIN || 'betacdmy.com.vendoworld.com').toLowerCase();
+    const mainDomain = (process.env.MAIN_DOMAIN || 'betacdmy.com').toLowerCase().replace(/^www\./, '');
     if (!hostname.endsWith(mainDomain))
         return null;
     const remainder = hostname.slice(0, -mainDomain.length).replace(/\.$/, '');

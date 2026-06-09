@@ -39,6 +39,7 @@ const staticPageDefinitions = JSON.parse(await readFile('./static-pages.json', '
 const blogImageConfig = JSON.parse(await readFile('./blogImageConfig.json', 'utf8'));
 import pool, { getDefaultPool, runWithPoolContext } from './db/pool.js';
 import { decryptField, encryptField } from './db/field-encryption.js';
+import { isPlatformMainHost, normalizePlatformHost } from './utils/platform-host.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -2074,8 +2075,10 @@ const isCentralDomainHostRequest = (req) => {
   if (!host) {
     return false;
   }
-  const mainDomain = String(process.env.MAIN_DOMAIN || 'betacdmy.com.vendoworld.com').trim().toLowerCase();
-  return host === mainDomain || host === `www.${mainDomain}`;
+  return isPlatformMainHost(host, {
+    mainDomain: process.env.MAIN_DOMAIN,
+    railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
+  });
 };
 
 const readAppearanceSettings = async (req) => {
@@ -12253,14 +12256,18 @@ app.use(express.static(join(__dirname, 'dist'), {
 
 // Handle client-side routing - send all requests to index.html
 app.get('*', async (req, res) => {
-  // Block unknown subdomains: if the request host is a subdomain of MAIN_DOMAIN
-  // but no tenant was resolved by optionalTenantResolver, refuse to serve the SPA.
+  // Block unknown tenant subdomains on the production main domain.
+  // Railway URLs (*.up.railway.app) are always the main platform site.
   {
-    const mainDomain = (process.env.MAIN_DOMAIN || 'betacdmy.com.vendoworld.com').toLowerCase();
+    const mainDomain = (process.env.MAIN_DOMAIN || 'betacdmy.com').toLowerCase().replace(/^www\./, '');
     const effectiveHost = req.headers['x-forwarded-host'] || req.headers['host'] || '';
     const rawHost = (Array.isArray(effectiveHost) ? effectiveHost[0] : String(effectiveHost).split(',')[0]).trim();
-    const hostname = rawHost.split(':')[0].toLowerCase().replace(/^www\./, '');
-    const isSubdomain = hostname !== mainDomain && hostname.endsWith(`.${mainDomain}`);
+    const hostname = normalizePlatformHost(rawHost);
+    const isKnownMainHost = isPlatformMainHost(hostname, {
+      mainDomain,
+      railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
+    });
+    const isSubdomain = !isKnownMainHost && hostname.endsWith(`.${mainDomain}`);
     if (isSubdomain && !req.tenant) {
       return res.status(404).type('html').send(
         `<!DOCTYPE html><html lang="ar" dir="rtl">

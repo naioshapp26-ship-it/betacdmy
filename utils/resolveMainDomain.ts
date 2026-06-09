@@ -1,4 +1,6 @@
-export const defaultMainDomain = 'betacdmy.com.vendoworld.com';
+import { isRailwayDeploymentHost, normalizePlatformHost } from './platform-host.js';
+
+export const defaultMainDomain = 'betacdmy.com';
 
 export const normalizeHost = (host: string) => host.toLowerCase().split(':')[0];
 
@@ -22,11 +24,17 @@ export const resolveMainDomainForHost = (
   host: string,
   envMainDomain: string | null
 ): string => {
-  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  const normalizedHost = normalizePlatformHost(host);
+  const isLocalHost = normalizedHost === 'localhost' || normalizedHost === '127.0.0.1';
   if (isLocalHost) {
     return normalizeMainDomain(
       envMainDomain || deriveMainDomainFromHost(host) || defaultMainDomain
     );
+  }
+
+  // Railway URLs (e.g. betacdmy-production.up.railway.app) are the main platform site.
+  if (isRailwayDeploymentHost(normalizedHost)) {
+    return normalizedHost;
   }
 
   const candidates = [envMainDomain, defaultMainDomain].filter(Boolean) as string[];
