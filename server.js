@@ -447,6 +447,11 @@ const upload = multer({
   }
 });
 
+// Lightweight health check for Railway and uptime monitors
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Enable gzip compression for all responses
 app.use(compression());
 
