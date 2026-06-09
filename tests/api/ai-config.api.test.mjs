@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { normalizeAIProvider, isGeminiProvider } from '../../backend/dist/utils/ai-provider.js';
 import { requireRole } from '../../backend/dist/middleware/rbac.middleware.js';
-import { extractSubdomain } from '../../backend/dist/middleware/tenant-resolver.js';
+import { extractSubdomain } from '../../backend/dist/utils/tenant-host.js';
 
 const createMockResponse = () => {
   const response = {

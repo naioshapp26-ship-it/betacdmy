@@ -3,6 +3,7 @@ import { centralPool, TenantRow } from '../central-db.js';
 import { isValidSubdomain } from '../utils/subdomain-validator.js';
 import { getTenantPool } from '../services/db-manager.js';
 import { createErrorResponse } from '../utils/error-messages.js';
+import { extractSubdomain } from '../utils/tenant-host.js';
 
 export type TenantContext = TenantRow & { connectionString?: string };
 
@@ -155,18 +156,6 @@ declare module 'express-serve-static-core' {
     tenantPool?: ReturnType<typeof getTenantPool> extends Promise<infer P> ? P : never;
   }
 }
-
-export const extractSubdomain = (host?: string | null): string | null => {
-  if (!host) return null;
-  const hostname = host.split(':')[0].toLowerCase();
-  const mainDomain = (process.env.MAIN_DOMAIN || 'betacdmy.com').toLowerCase();
-  if (!hostname.endsWith(mainDomain)) return null;
-  const remainder = hostname.slice(0, -mainDomain.length).replace(/\.$/, '');
-  if (!remainder || remainder === 'www') {
-    return null;
-  }
-  return remainder;
-};
 
 /**
  * Get the effective host for subdomain extraction.
