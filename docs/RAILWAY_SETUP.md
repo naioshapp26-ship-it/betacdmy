@@ -31,16 +31,26 @@ This guide explains how to connect the Betacademy project to Railway and fix com
 
 ---
 
-## Step 2: Add PostgreSQL Database
+## Step 2: Connect PostgreSQL to betacdmy (REQUIRED)
 
-1. In the Railway project, click **+ New**
-2. Choose **Database → PostgreSQL**
-3. After it is created, open the **betacdmy** web service
-4. Go to **Variables** tab
-5. Click **+ New Variable → Add Reference**
-6. Reference the Postgres `DATABASE_URL` as `CENTRAL_DATABASE_URL`
+PostgreSQL can be **Online** but the app will **crash** until you connect it to the web service.
 
-> The app uses `CENTRAL_DATABASE_URL` first, then falls back to `DATABASE_URL`.
+### Option A — Connect from canvas (recommended)
+
+1. On the Railway project canvas, click the **Postgres** box
+2. Click **Connect**
+3. Select service: **betacdmy**
+4. Railway adds `DATABASE_URL` automatically
+5. Redeploy **betacdmy**
+
+### Option B — Variables tab
+
+1. Open **betacdmy** web service → **Variables**
+2. **+ New Variable → Add Reference**
+3. Select **Postgres** → **`DATABASE_URL`**
+4. Redeploy
+
+> The app accepts `DATABASE_URL`, `CENTRAL_DATABASE_URL`, `DATABASE_PRIVATE_URL`, or individual `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` references.
 
 ---
 
@@ -137,15 +147,13 @@ The project structure is correct:
 
 This means the app **crashed on startup** before Railway could reach it.
 
-**Most common cause:** PostgreSQL is not linked to the web service.
+**Most common cause:** PostgreSQL exists but is **not connected** to betacdmy.
 
-**Fix (5 minutes):**
+**Fix (2 minutes):**
 
-1. Railway project → confirm a **PostgreSQL** service exists
-2. Open **betacdmy** (web) service → **Variables**
-3. Click **+ New Variable** → **Add Reference**
-4. Select **Postgres** → choose **`DATABASE_URL`**
-5. Also set manually:
+1. Click **Postgres** on the canvas → **Connect** → select **betacdmy**
+2. Or: **betacdmy → Variables → Add Reference → Postgres → DATABASE_URL**
+3. Also set manually:
    ```
    NODE_ENV=production
    JWT_SECRET=<random string>

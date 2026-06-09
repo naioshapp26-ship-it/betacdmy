@@ -16,7 +16,7 @@
     "test:api": "npm run build:backend && node --test tests/api/**/*.test.mjs",
     "preview": "vite preview",
     "prestart": "npm run build",
-    "start": "node server.js",
+    "start": "node scripts/start.mjs",
     "migrate:central": "node scripts/run-migrations.mjs central",
     "migrate:tenant": "node scripts/run-migrations.mjs tenant",
     "migrate:default-tenant": "node scripts/migrate-to-multitenant.mjs",

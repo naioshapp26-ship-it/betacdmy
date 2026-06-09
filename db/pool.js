@@ -1,18 +1,19 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import dotenv from 'dotenv';
 import pg from 'pg';
+import { resolveDatabaseUrl } from './resolve-database-url.js';
 
 dotenv.config();
 
 const { Pool } = pg;
 
 // Tenant-facing app data (courses, users, etc.) can live in a separate DB.
-// If TENANT_DATABASE_URL is provided, prefer it; otherwise fall back to DATABASE_URL.
-const connectionString = process.env.TENANT_DATABASE_URL || process.env.DATABASE_URL;
+// If TENANT_DATABASE_URL is provided, prefer it; otherwise fall back to shared URL.
+const connectionString = process.env.TENANT_DATABASE_URL || resolveDatabaseUrl();
 
 if (!connectionString) {
   throw new Error(
-    'No tenant database connection configured. Set DATABASE_URL or TENANT_DATABASE_URL (Railway: link PostgreSQL via Variables → Add Reference).'
+    'No database URL configured. Railway: open Postgres → Connect → betacdmy, or add DATABASE_URL reference in Variables.'
   );
 }
 

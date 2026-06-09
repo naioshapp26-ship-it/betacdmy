@@ -1,29 +1,31 @@
 import dotenv from 'dotenv';
+import { hasDatabaseConfig } from '../db/resolve-database-url.js';
 
 dotenv.config();
 
-const hasDatabaseUrl = [
-  process.env.CENTRAL_DATABASE_URL,
-  process.env.DATABASE_URL,
-  process.env.PROVISIONING_ADMIN_DATABASE_URL,
-  process.env.TENANT_DATABASE_URL,
-].some((value) => value && !value.includes('******'));
-
-if (!hasDatabaseUrl) {
+if (!hasDatabaseConfig()) {
   console.error('');
   console.error('=== BETACADEMY STARTUP FAILED ===');
-  console.error('No database URL configured (DATABASE_URL / CENTRAL_DATABASE_URL).');
+  console.error('PostgreSQL is not connected to this service.');
   console.error('');
-  console.error('Railway fix:');
-  console.error('  1. Project → + New → Database → PostgreSQL');
-  console.error('  2. Open betacdmy web service → Variables');
-  console.error('  3. + New Variable → Add Reference → Postgres → DATABASE_URL');
-  console.error('  4. Redeploy');
+  console.error('Railway fix (choose ONE):');
+  console.error('');
+  console.error('  Option A — Connect from canvas (easiest):');
+  console.error('    1. Click the Postgres box on the canvas');
+  console.error('    2. Click "Connect"');
+  console.error('    3. Select service: betacdmy');
+  console.error('    4. Redeploy');
+  console.error('');
+  console.error('  Option B — Variables tab:');
+  console.error('    1. Open betacdmy → Variables');
+  console.error('    2. + New Variable → Add Reference');
+  console.error('    3. Postgres → DATABASE_URL');
+  console.error('    4. Redeploy');
   console.error('');
   process.exit(1);
 }
 
-console.log('[Startup] Database URL configured');
+console.log('[Startup] Database URL configured ✓');
 console.log('[Startup] NODE_ENV:', process.env.NODE_ENV || 'development');
 console.log('[Startup] PORT:', process.env.PORT || '3000 (default)');
 
