@@ -79,7 +79,7 @@ const decryptConnectionString = async (tenant) => {
         }
         throw new Error('Failed to decrypt tenant database connection string');
     }
-    const fallback = process.env.TENANT_DATABASE_URL || process.env.DATABASE_URL;
+    const fallback = process.env.TENANT_DATABASE_URL || process.env.DATABASE_URL || process.env.CENTRAL_DATABASE_URL;
     if (fallback)
         return stripSSLModeParam(fallback);
     return null;

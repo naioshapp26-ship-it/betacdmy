@@ -7,11 +7,16 @@ dotenv.config();
 const { Pool } = pg;
 
 // Tenant-facing app data (courses, users, etc.) can live in a separate DB.
-// If TENANT_DATABASE_URL is provided, prefer it; otherwise fall back to DATABASE_URL.
-const connectionString = process.env.TENANT_DATABASE_URL || process.env.DATABASE_URL;
+// If TENANT_DATABASE_URL is provided, prefer it; otherwise fall back to the
+// app database used for central data. Railway setups often expose only one
+// Postgres reference, so CENTRAL_DATABASE_URL must also be accepted here.
+const connectionString =
+  process.env.TENANT_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  process.env.CENTRAL_DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error('No tenant database connection configured. Set TENANT_DATABASE_URL or DATABASE_URL in your environment.');
+  throw new Error('No tenant database connection configured. Set TENANT_DATABASE_URL, DATABASE_URL, or CENTRAL_DATABASE_URL in your environment.');
 }
 
 const isLocalConnection = /localhost|127\.0\.0\.1/i.test(connectionString);

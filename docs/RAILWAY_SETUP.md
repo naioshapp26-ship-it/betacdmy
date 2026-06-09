@@ -38,9 +38,12 @@ This guide explains how to connect the Betacademy project to Railway and fix com
 3. After it is created, open the **betacdmy** web service
 4. Go to **Variables** tab
 5. Click **+ New Variable → Add Reference**
-6. Reference the Postgres `DATABASE_URL` as `CENTRAL_DATABASE_URL`
+6. Reference the Postgres connection string as `CENTRAL_DATABASE_URL`
 
-> The app uses `CENTRAL_DATABASE_URL` first, then falls back to `DATABASE_URL`.
+> The app uses `CENTRAL_DATABASE_URL` first for central data. Tenant-facing data uses
+> `TENANT_DATABASE_URL` when set, otherwise it falls back to `DATABASE_URL` and then
+> `CENTRAL_DATABASE_URL`, so a single Railway Postgres database is enough for the
+> default deployment.
 
 ---
 
@@ -51,7 +54,7 @@ Set these in the **betacdmy** service → **Variables**:
 | Variable | Required | Example / Notes |
 |----------|----------|-----------------|
 | `NODE_ENV` | Yes | `production` |
-| `CENTRAL_DATABASE_URL` | Yes | Reference from PostgreSQL service |
+| `CENTRAL_DATABASE_URL` | Yes | Reference from the PostgreSQL service connection string |
 | `JWT_SECRET` | Yes | Long random string (32+ chars) |
 | `TENANT_DB_ENCRYPTION_KEY` | Yes | 32-byte hex key for tenant DB credentials |
 | `RAILWAY_PUBLIC_DOMAIN` | Auto | Railway sets this automatically when you generate a domain |
@@ -60,7 +63,8 @@ Set these in the **betacdmy** service → **Variables**:
 
 | Variable | Purpose |
 |----------|---------|
-| `TENANT_DATABASE_URL` | Separate DB for tenant data (defaults to central DB if unset) |
+| `DATABASE_URL` | Compatibility alias for shared app data; optional if `CENTRAL_DATABASE_URL` is set |
+| `TENANT_DATABASE_URL` | Separate DB for tenant data; defaults to shared app DB if unset |
 | `CORS_ALLOWED_ORIGINS` | `https://your-app.up.railway.app` |
 | `UPLOAD_DIR` | `/uploads` with a Railway Volume for persistent uploads |
 | `SMTP_*` | Email (password reset, welcome emails) |
@@ -148,7 +152,7 @@ If it still fails, upgrade the Railway plan or reduce chunk sizes.
 CENTRAL_DATABASE_URL is not configured
 ```
 
-→ Add PostgreSQL and reference `CENTRAL_DATABASE_URL` in Variables.
+→ Add PostgreSQL and reference its connection string as `CENTRAL_DATABASE_URL` in Variables.
 
 ### App starts but API returns CORS errors
 
