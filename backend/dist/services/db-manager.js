@@ -1,5 +1,7 @@
 import { Pool } from 'pg';
 import { centralPool } from '../central-db.js';
+import { decryptField } from '../utils/field-encryption.js';
+import { resolveTenantDbEncryptionKey } from '../utils/tenant-encryption-key.js';
 const TTL_MS = 5 * 60 * 1000;
 const pools = new Map();
 const ensuredPasswordHashPools = new WeakSet();
@@ -55,6 +57,11 @@ const ensurePasswordHashColumn = async (pool) => {
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_users_password_hash ON users(password_hash) WHERE password_hash IS NOT NULL');
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_country_code TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS specialization TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS follow_up_status TEXT');
         ensuredPasswordHashPools.add(pool);
     }
     catch (error) {
@@ -68,12 +75,8 @@ const decryptConnectionString = async (tenant) => {
         return stripSSLModeParam(override);
     const hasEncryptedConnection = tenant.database_url_encrypted && tenant.database_url_encrypted.length > 0;
     if (hasEncryptedConnection) {
-        const encryptionKey = process.env.TENANT_DB_ENCRYPTION_KEY;
-        if (!encryptionKey) {
-            throw new Error('TENANT_DB_ENCRYPTION_KEY must be configured to decrypt tenant databases');
-        }
-        const result = await centralPool.query(`SELECT pgp_sym_decrypt($1::bytea, $2) AS connection_string`, [tenant.database_url_encrypted, encryptionKey]);
-        const decrypted = result.rows[0]?.connection_string;
+        const encryptionKey = resolveTenantDbEncryptionKey();
+        const decrypted = decryptField(tenant.database_url_encrypted, encryptionKey);
         if (decrypted) {
             return stripSSLModeParam(decrypted);
         }

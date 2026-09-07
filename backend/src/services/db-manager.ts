@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { TenantRow, centralPool } from '../central-db.js';
 import { decryptField } from '../utils/field-encryption.js';
+import { resolveTenantDbEncryptionKey } from '../utils/tenant-encryption-key.js';
 
 type PoolEntry = {
   pool: Pool;
@@ -92,11 +93,7 @@ const decryptConnectionString = async (tenant: TenantRow): Promise<string | null
 
   const hasEncryptedConnection = tenant.database_url_encrypted && tenant.database_url_encrypted.length > 0;
   if (hasEncryptedConnection) {
-    const encryptionKey = process.env.TENANT_DB_ENCRYPTION_KEY;
-    if (!encryptionKey) {
-      throw new Error('TENANT_DB_ENCRYPTION_KEY must be configured to decrypt tenant databases');
-    }
-
+    const encryptionKey = resolveTenantDbEncryptionKey();
     const decrypted = decryptField(tenant.database_url_encrypted, encryptionKey);
     if (decrypted) {
       return stripSSLModeParam(decrypted);

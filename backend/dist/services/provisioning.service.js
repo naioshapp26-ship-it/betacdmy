@@ -9,6 +9,7 @@ import { auditLogService } from './audit-log.service.js';
 import { emailService } from './email.service.js';
 import { encryptField } from '../utils/field-encryption.js';
 import { buildPendingDatabaseUrl, quotePgIdentifier, resolveProvisioningAdminDatabaseUrl, resolveTenantDatabaseUrlTemplate } from '../utils/provisioning-db-config.js';
+import { resolveTenantDbEncryptionKey } from '../utils/tenant-encryption-key.js';
 const DUPLICATE_DATABASE = '42P04';
 // Transaction boundaries:
 // - ATOMIC_IN_CENTRAL: Steps that are atomic within a single Central DB transaction
@@ -284,21 +285,7 @@ export class ProvisioningService {
         context.rollbackActions = [];
     }
     encryptionKey() {
-        const configured = process.env.TENANT_DB_ENCRYPTION_KEY;
-        if (configured && configured !== 'placeholder_key') {
-            return configured;
-        }
-        // Stable fallback so Railway can provision when only JWT_SECRET is set.
-        // Prefer setting TENANT_DB_ENCRYPTION_KEY explicitly and keeping it stable.
-        if (process.env.JWT_SECRET) {
-            console.warn('[Provisioning] TENANT_DB_ENCRYPTION_KEY missing; deriving encryption key from JWT_SECRET (set TENANT_DB_ENCRYPTION_KEY explicitly for production)');
-            return `tenant-db:${process.env.JWT_SECRET}`;
-        }
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('TENANT_DB_ENCRYPTION_KEY (or JWT_SECRET) must be configured in production before provisioning tenants');
-        }
-        console.warn('[Provisioning] TENANT_DB_ENCRYPTION_KEY missing; using insecure development placeholder');
-        return 'placeholder_key';
+        return resolveTenantDbEncryptionKey();
     }
     async fetchTenantById(id) {
         const result = await this.central.query(`SELECT id, subdomain, company_name, status, subscription_plan, database_url_encrypted, database_name
