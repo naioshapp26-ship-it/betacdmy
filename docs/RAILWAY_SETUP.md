@@ -174,6 +174,23 @@ If logs show `Connection terminated` or migration errors → delete old Postgres
 
 ---
 
+### App crashes with "Tenant provisioning failed"
+
+**Root cause (fixed in code):** Step 1 inserted `NULL` into `tenants.database_url_encrypted` because `encryptField('')` returns null while the column is `NOT NULL`.
+
+**Also required on Railway Variables for academy signup:**
+
+| Variable | Notes |
+|----------|--------|
+| `DATABASE_URL` | Linked from Postgres (required) |
+| `TENANT_DB_ENCRYPTION_KEY` | Random hex key (required in production) |
+| `TENANT_DATABASE_URL_TEMPLATE` | Optional if `DATABASE_URL` is set — auto-derived as `.../{db}` |
+| `PROVISIONING_ADMIN_DATABASE_URL` | Optional — defaults to `DATABASE_URL` for `CREATE DATABASE` |
+
+**Tenant subdomain note:** Railway `*.up.railway.app` hosts do **not** support wildcard DNS for `tenant.your-app.up.railway.app`. For real tenant URLs, attach a custom domain with wildcard DNS (e.g. `*.betacdmy.com`) and set `MAIN_DOMAIN=betacdmy.com`.
+
+---
+
 ### Build fails with out-of-memory
 
 Railway may need more memory for the Vite build. The build script already sets:

@@ -239,7 +239,10 @@ export const createTenantRouter = (provisioning = new ProvisioningService()) => 
       res.status(202).json({ tenantId: tenant.id, status: 'provisioning_started' });
     } catch (error) {
       console.error('Provisioning start failed', error);
-      res.status(500).json(createErrorResponse('errors.tenantProvisioningFailed', req, 'Provisioning failed'));
+      const message = (error as Error)?.message || 'Provisioning failed';
+      res.status(500).json(
+        createErrorResponse('errors.tenantProvisioningFailed', req, 'Provisioning failed', message)
+      );
     }
   });
 

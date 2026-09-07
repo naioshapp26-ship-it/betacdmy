@@ -7,6 +7,8 @@ import { getTenantPool } from './db-manager.js';
 import { isValidSubdomain } from '../utils/subdomain-validator.js';
 import { auditLogService } from './audit-log.service.js';
 import { emailService } from './email.service.js';
+import { encryptField } from '../utils/field-encryption.js';
+import { buildPendingDatabaseUrl, quotePgIdentifier, resolveProvisioningAdminDatabaseUrl, resolveTenantDatabaseUrlTemplate } from '../utils/provisioning-db-config.js';
 const DUPLICATE_DATABASE = '42P04';
 // Transaction boundaries:
 // - ATOMIC_IN_CENTRAL: Steps that are atomic within a single Central DB transaction
@@ -167,9 +169,9 @@ export class ProvisioningService {
      * Drop a tenant database (destructive operation)
      */
     async dropTenantDatabase(databaseName) {
-        const adminUrl = process.env.PROVISIONING_ADMIN_DATABASE_URL;
+        const adminUrl = resolveProvisioningAdminDatabaseUrl();
         if (!adminUrl) {
-            console.warn('[Provisioning] PROVISIONING_ADMIN_DATABASE_URL not set; cannot drop database %s', databaseName);
+            console.warn('[Provisioning] No admin database URL available; cannot drop database %s', databaseName);
             return;
         }
         const adminPool = buildPool(adminUrl);
@@ -179,7 +181,7 @@ export class ProvisioningService {
          FROM pg_stat_activity 
          WHERE datname = $1 AND pid <> pg_backend_pid()`, [databaseName]);
             // Drop database
-            await adminPool.query(`DROP DATABASE IF EXISTS ${databaseName}`);
+            await adminPool.query(`DROP DATABASE IF EXISTS ${quotePgIdentifier(databaseName)}`);
         }
         finally {
             await adminPool.end();
@@ -282,7 +284,15 @@ export class ProvisioningService {
         context.rollbackActions = [];
     }
     encryptionKey() {
-        return process.env.TENANT_DB_ENCRYPTION_KEY || 'placeholder_key';
+        const key = process.env.TENANT_DB_ENCRYPTION_KEY;
+        if (!key || key === 'placeholder_key') {
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('TENANT_DB_ENCRYPTION_KEY must be configured in production before provisioning tenants');
+            }
+            console.warn('[Provisioning] TENANT_DB_ENCRYPTION_KEY missing; using insecure development placeholder');
+            return 'placeholder_key';
+        }
+        return key;
     }
     async fetchTenantById(id) {
         const result = await this.central.query(`SELECT id, subdomain, company_name, status, subscription_plan, database_url_encrypted, database_name
@@ -314,10 +324,16 @@ export class ProvisioningService {
         const client = await this.central.connect();
         try {
             await client.query('BEGIN');
-            // Default status is 'active' - no payment required to provision tenants
+            // database_url_encrypted is NOT NULL. Real URL is written in STORE_DATABASE_SECRET.
+            // Encrypt a pending placeholder here so the INSERT never violates the constraint.
+            const provisionalUrl = input.databaseUrl || buildPendingDatabaseUrl(fallbackDbName);
+            const encryptedDbUrl = encryptField(provisionalUrl, this.encryptionKey());
+            if (!encryptedDbUrl) {
+                throw new Error('Failed to encrypt tenant database URL placeholder');
+            }
             const result = await client.query(`INSERT INTO tenants (subdomain, company_name, subscription_plan, database_url_encrypted, database_name, status, activated_at)
-         VALUES ($1, $2, $3, pgp_sym_encrypt(COALESCE($4,''), $5), $6, 'active', NOW())
-         RETURNING id, subdomain, company_name, status, subscription_plan, database_url_encrypted, database_name`, [normalizedSubdomain, input.companyName, input.subscriptionPlan, input.databaseUrl || '', this.encryptionKey(), fallbackDbName]);
+         VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+         RETURNING id, subdomain, company_name, status, subscription_plan, database_url_encrypted, database_name`, [normalizedSubdomain, input.companyName, input.subscriptionPlan, encryptedDbUrl, fallbackDbName]);
             const tenant = result.rows[0];
             if (input.admin) {
                 // Hash password before storing
@@ -372,28 +388,29 @@ export class ProvisioningService {
         }
     }
     async ensureTenantDatabaseExists(databaseName) {
-        const adminUrl = process.env.PROVISIONING_ADMIN_DATABASE_URL;
+        const adminUrl = resolveProvisioningAdminDatabaseUrl();
         if (!adminUrl) {
-            console.warn('[Provisioning] PROVISIONING_ADMIN_DATABASE_URL not set; skipping CREATE DATABASE for %s', databaseName);
-            return;
+            throw new Error('PROVISIONING_ADMIN_DATABASE_URL (or DATABASE_URL) is required to create tenant databases');
         }
         const adminPool = buildPool(adminUrl);
         try {
-            await adminPool.query(`CREATE DATABASE ${databaseName}`);
+            await adminPool.query(`CREATE DATABASE ${quotePgIdentifier(databaseName)}`);
+            console.info('[Provisioning] Created database %s', databaseName);
         }
         catch (error) {
             if (error?.code !== DUPLICATE_DATABASE) {
                 throw error;
             }
+            console.info('[Provisioning] Database %s already exists (idempotent)', databaseName);
         }
         finally {
             await adminPool.end();
         }
     }
     async createTenantDatabase(subdomain) {
-        const template = process.env.TENANT_DATABASE_URL_TEMPLATE;
+        const template = resolveTenantDatabaseUrlTemplate();
         if (!template || !template.includes('{db}')) {
-            throw new Error('TENANT_DATABASE_URL_TEMPLATE must be configured with a {db} placeholder');
+            throw new Error('TENANT_DATABASE_URL_TEMPLATE must be configured with a {db} placeholder (or set DATABASE_URL so it can be derived)');
         }
         const databaseName = formatDatabaseName(subdomain);
         await this.ensureTenantDatabaseExists(databaseName);
@@ -482,26 +499,31 @@ export class ProvisioningService {
            AND (valid_to IS NULL OR valid_to > NOW())
          ORDER BY valid_from DESC
          LIMIT 1`, [planId]);
-            const lockedAmount = priceResult.rows[0]?.amount || 0;
+            const lockedAmount = priceResult.rows[0]?.amount ?? null;
             const lockedCurrency = priceResult.rows[0]?.currency || 'USD';
-            // VALIDATION: Ensure we have valid pricing before creating subscription
-            if (lockedAmount === 0) {
+            // Prefer seeded plan prices; fall back to safe non-zero defaults so Railway
+            // provisioning is not blocked when price rows were not seeded yet.
+            const DEFAULT_PLAN_AMOUNTS = {
+                basic: 49,
+                pro: 99,
+                enterprise: 199
+            };
+            const amount = lockedAmount !== null && Number(lockedAmount) > 0
+                ? Number(lockedAmount)
+                : DEFAULT_PLAN_AMOUNTS[tenant.subscription_plan] || 49;
+            if (!amount || amount <= 0) {
                 console.error(`[Provisioning] Cannot create subscription with zero price for tenant ${tenant.id} (plan: ${tenant.subscription_plan})`);
                 throw new Error(`No valid price found for plan ${tenant.subscription_plan}. Cannot create subscription.`);
             }
-            if (!lockedCurrency) {
-                console.error(`[Provisioning] Missing currency for tenant ${tenant.id}`);
-                throw new Error('Currency is required to create a subscription');
-            }
-            console.log(`[Provisioning] Creating subscription with locked pricing: ${lockedAmount} ${lockedCurrency} for tenant ${tenant.id}`);
+            console.log(`[Provisioning] Creating subscription with locked pricing: ${amount} ${lockedCurrency} for tenant ${tenant.id}`);
             // Create subscription record with locked pricing
             // CRITICAL: locked_amount = price agreed to at signup (source of truth for billing)
             await this.central.query(`INSERT INTO subscriptions 
           (tenant_id, plan, plan_id, status, price_monthly, locked_amount, locked_currency, 
            currency, billing_cycle, current_period_start, current_period_end, created_at, updated_at)
          VALUES ($1, $2, $3, 'active', $4, $4, $5, $5, 'monthly', NOW(), NOW() + INTERVAL '1 month', NOW(), NOW())
-         ON CONFLICT (tenant_id) WHERE status = 'active' DO NOTHING`, [tenant.id, tenant.subscription_plan, planId, lockedAmount, lockedCurrency]);
-            console.log(`[Provisioning] Created subscription for tenant ${tenant.id} (${tenant.subdomain}) - Plan: ${tenant.subscription_plan}, Locked Amount: ${lockedAmount} ${lockedCurrency}`);
+         ON CONFLICT (tenant_id) WHERE status = 'active' DO NOTHING`, [tenant.id, tenant.subscription_plan, planId, amount, lockedCurrency]);
+            console.log(`[Provisioning] Created subscription for tenant ${tenant.id} (${tenant.subdomain}) - Plan: ${tenant.subscription_plan}, Locked Amount: ${amount} ${lockedCurrency}`);
         }
         catch (error) {
             console.error(`[Provisioning] Failed to create subscription for tenant ${tenant.id}:`, error);
@@ -511,23 +533,25 @@ export class ProvisioningService {
     async createAdminUser(tenant, admin) {
         const pool = await getTenantPool(tenant);
         // Use provided password or generate a temporary one
-        const password = admin.password || `${admin.email.split('@')[0]}123`;
+        const password = admin.password || `${admin.email.split('@')[0]}-${Math.random().toString(36).slice(2, 10)}`;
+        const passwordHash = await bcrypt.hash(password, 10);
         const normalizedEmail = admin.email.trim().toLowerCase();
         const displayName = `${admin.firstName || 'Admin'} ${admin.lastName || ''}`.trim();
-        const existingUser = await pool.query(`SELECT id, password FROM users WHERE LOWER(email) = $1 LIMIT 1`, [normalizedEmail]);
+        const existingUser = await pool.query(`SELECT id, password, password_hash FROM users WHERE LOWER(email) = $1 LIMIT 1`, [normalizedEmail]);
         if (existingUser.rows.length > 0) {
             await pool.query(`UPDATE users
          SET name = $2,
              role = 'ADMIN',
-             password = COALESCE(password, $3)
-         WHERE id = $1`, [existingUser.rows[0].id, displayName, password]);
+             password = COALESCE(password, $3),
+             password_hash = COALESCE(password_hash, $4)
+         WHERE id = $1`, [existingUser.rows[0].id, displayName, password, passwordHash]);
             console.info('[Provisioning] Admin user already exists for %s; updated record', admin.email);
             return;
         }
-        await pool.query(`INSERT INTO users (id, email, name, role, password)
-       VALUES (uuid_generate_v4(), $1, $2, 'ADMIN', $3)
-       ON CONFLICT (email) DO NOTHING`, [normalizedEmail, displayName, password]);
-        console.info('[Provisioning] Admin user created for %s with password: %s', admin.email, admin.password ? '***provided***' : password);
+        await pool.query(`INSERT INTO users (id, email, name, role, password, password_hash)
+       VALUES (gen_random_uuid(), $1, $2, 'ADMIN', $3, $4)
+       ON CONFLICT (email) DO NOTHING`, [normalizedEmail, displayName, password, passwordHash]);
+        console.info('[Provisioning] Admin user created for %s', admin.email);
     }
     async sendWelcomeEmail(tenant, adminEmail) {
         console.info('[Provisioning] Sending welcome email to %s for tenant %s', adminEmail, tenant.subdomain);
@@ -634,7 +658,11 @@ export class ProvisioningService {
                 // STEP 3: STORE_DATABASE_SECRET (ATOMIC_IN_CENTRAL - database transaction)
                 if (resumeIndex <= stepOrder.indexOf('STORE_DATABASE_SECRET')) {
                     await this.runStep(context, 'STORE_DATABASE_SECRET', async () => {
-                        await this.central.query(`UPDATE tenants SET database_url_encrypted = pgp_sym_encrypt($1, $2), database_name = $3 WHERE id = $4`, [dbInfo.databaseUrl, this.encryptionKey(), dbInfo.databaseName, tenant.id]);
+                        const encrypted = encryptField(dbInfo.databaseUrl, this.encryptionKey());
+                        if (!encrypted) {
+                            throw new Error('Failed to encrypt tenant database connection string');
+                        }
+                        await this.central.query(`UPDATE tenants SET database_url_encrypted = $1, database_name = $2 WHERE id = $3`, [encrypted, dbInfo.databaseName, tenant.id]);
                     }, { start: 'Encrypting tenant connection string', success: 'Connection string stored' });
                     tenant = await this.fetchTenantById(tenant.id);
                 }

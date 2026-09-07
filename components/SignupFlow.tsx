@@ -220,7 +220,8 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || signupCopy.genericError);
+        const detail = payload?.details ? ` ${payload.details}` : '';
+        throw new Error(`${payload?.error || signupCopy.genericError}${detail}`);
       }
       const data = await response.json();
       setTenantId(data.tenantId);
@@ -230,7 +231,13 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
       setProvisioningError(deriveErrorMessage(error));
       setProvisioningState('failed');
     }
-  }, [form, pollProvisioning, provisioningState, signupCopy.genericError]);
+  }, [form, pollProvisioning, provisioningState, signupCopy.genericError, phoneValue]);
+
+  const retryProvisioning = useCallback(() => {
+    setProvisioningError(null);
+    setProvisioningLogs([]);
+    setProvisioningState('idle');
+  }, []);
 
   const next = async () => {
     if (step === 1) {
@@ -346,7 +353,18 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
             })}
           </ol>
           {provisioningError && (
-            <p className="text-sm text-red-600">{provisioningError}</p>
+            <div className="space-y-2">
+              <p className="text-sm text-red-600 whitespace-pre-wrap">{provisioningError}</p>
+              <button
+                type="button"
+                onClick={retryProvisioning}
+                className="text-sm font-semibold text-red-700 underline"
+              >
+                {(typeof document !== 'undefined' && document.documentElement.lang === 'ar')
+                  ? 'إعادة المحاولة'
+                  : 'Retry provisioning'}
+              </button>
+            </div>
           )}
         </div>
       );

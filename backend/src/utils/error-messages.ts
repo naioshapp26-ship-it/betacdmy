@@ -55,13 +55,22 @@ export function getLanguageFromRequest(req: any): Lang {
 export function createErrorResponse(
   errorKey: string,
   req: any,
-  fallback?: string
-): { error: string; errorKey?: string } {
+  fallback?: string,
+  details?: string
+): { error: string; errorKey?: string; details?: string } {
   const lang = getLanguageFromRequest(req);
   const message = getErrorMessage(errorKey, lang, fallback);
-  
+  const safeDetails =
+    typeof details === 'string'
+      ? details
+          .replace(/postgresql:\/\/[^\s'"]+/gi, 'postgresql://***')
+          .replace(/postgres:\/\/[^\s'"]+/gi, 'postgres://***')
+          .slice(0, 500)
+      : undefined;
+
   return {
     error: message,
+    ...(safeDetails ? { details: safeDetails } : {}),
     ...(process.env.NODE_ENV === 'development' && { errorKey })
   };
 }

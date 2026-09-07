@@ -38,11 +38,18 @@ export function getLanguageFromRequest(req) {
 /**
  * Create error response with localized message
  */
-export function createErrorResponse(errorKey, req, fallback) {
+export function createErrorResponse(errorKey, req, fallback, details) {
     const lang = getLanguageFromRequest(req);
     const message = getErrorMessage(errorKey, lang, fallback);
+    const safeDetails = typeof details === 'string'
+        ? details
+            .replace(/postgresql:\/\/[^\s'"]+/gi, 'postgresql://***')
+            .replace(/postgres:\/\/[^\s'"]+/gi, 'postgres://***')
+            .slice(0, 500)
+        : undefined;
     return {
         error: message,
+        ...(safeDetails ? { details: safeDetails } : {}),
         ...(process.env.NODE_ENV === 'development' && { errorKey })
     };
 }
