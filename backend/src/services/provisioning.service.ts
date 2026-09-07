@@ -423,17 +423,28 @@ export class ProvisioningService {
   }
 
   private encryptionKey() {
-    const key = process.env.TENANT_DB_ENCRYPTION_KEY;
-    if (!key || key === 'placeholder_key') {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error(
-          'TENANT_DB_ENCRYPTION_KEY must be configured in production before provisioning tenants'
-        );
-      }
-      console.warn('[Provisioning] TENANT_DB_ENCRYPTION_KEY missing; using insecure development placeholder');
-      return 'placeholder_key';
+    const configured = process.env.TENANT_DB_ENCRYPTION_KEY;
+    if (configured && configured !== 'placeholder_key') {
+      return configured;
     }
-    return key;
+
+    // Stable fallback so Railway can provision when only JWT_SECRET is set.
+    // Prefer setting TENANT_DB_ENCRYPTION_KEY explicitly and keeping it stable.
+    if (process.env.JWT_SECRET) {
+      console.warn(
+        '[Provisioning] TENANT_DB_ENCRYPTION_KEY missing; deriving encryption key from JWT_SECRET (set TENANT_DB_ENCRYPTION_KEY explicitly for production)'
+      );
+      return `tenant-db:${process.env.JWT_SECRET}`;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'TENANT_DB_ENCRYPTION_KEY (or JWT_SECRET) must be configured in production before provisioning tenants'
+      );
+    }
+
+    console.warn('[Provisioning] TENANT_DB_ENCRYPTION_KEY missing; using insecure development placeholder');
+    return 'placeholder_key';
   }
 
   private async fetchTenantById(id: string): Promise<TenantRow> {
