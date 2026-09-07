@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNotification } from './NotificationContext';
 import type { PlanPricingMap } from '../hooks/usePublicPaymentConfig';
 import PhoneInput, { parsePhoneValue, type PhoneValue } from './PhoneInput';
+import { buildTenantPublicUrl } from '../utils/platform-host.js';
 
 type SaasCopy = NonNullable<(typeof import('../translations'))['translations']['en']['saas']>;
 
@@ -85,7 +86,28 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
 
   const update = (key: keyof typeof initialForm, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const subdomainHint = useMemo(() => (form.subdomain ? `${form.subdomain}.${mainDomain}` : `your-academy.${mainDomain}`), [form.subdomain, mainDomain]);
+  const academyPublicUrl = useMemo(() => {
+    if (!form.subdomain.trim()) {
+      const sample =
+        buildTenantPublicUrl({
+          subdomain: 'your-academy',
+          mainDomain,
+          host: typeof window !== 'undefined' ? window.location.hostname : mainDomain,
+          protocol: typeof window !== 'undefined' ? window.location.protocol.replace(':', '') || 'https' : 'https'
+        }) || `https://your-academy.${mainDomain}`;
+      return sample;
+    }
+    return (
+      buildTenantPublicUrl({
+        subdomain: form.subdomain.trim().toLowerCase(),
+        mainDomain,
+        host: typeof window !== 'undefined' ? window.location.hostname : mainDomain,
+        protocol: typeof window !== 'undefined' ? window.location.protocol.replace(':', '') || 'https' : 'https'
+      }) || `https://${form.subdomain}.${mainDomain}`
+    );
+  }, [form.subdomain, mainDomain]);
+
+  const subdomainHint = useMemo(() => academyPublicUrl.replace(/^https?:\/\//, ''), [academyPublicUrl]);
   const currentStepTitle = signupCopy.stepTitles[String(step) as keyof typeof signupCopy.stepTitles] || '';
   const stepIndicator = formatTokens(signupCopy.stepLabel, { current: String(step), total: TOTAL_STEPS.toString() });
 
@@ -283,10 +305,9 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
       return;
     }
     if (step === 4) {
-      // Final step - redirect to tenant subdomain
+      // Final step - redirect to tenant academy URL (path-based on Railway)
       if (form.subdomain) {
-        const tenantUrl = `https://${form.subdomain}.${mainDomain}`;
-        window.location.href = tenantUrl;
+        window.location.href = academyPublicUrl;
       }
       return;
     }
@@ -372,7 +393,7 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
     if (step === 4) {
       const successMessage = formatTokens(successCopy.message, {
         subdomain: form.subdomain || 'your-academy',
-        domain: mainDomain
+        domain: subdomainHint
       });
       return (
         <div className="p-4 rounded-lg border border-green-200 bg-green-50">
@@ -523,7 +544,7 @@ const SignupFlow: React.FC<Props> = ({ mainDomain, copy, planPricing }) => {
                 {summaryCopy.admin}: {form.adminEmail || '—'}
               </div>
               <div>
-                {summaryCopy.subdomain}: {form.subdomain ? `${form.subdomain}.${mainDomain}` : '—'}
+                {summaryCopy.subdomain}: {form.subdomain ? subdomainHint : '—'}
               </div>
               <div>
                 {summaryCopy.plan}: {currentPlanLabel}

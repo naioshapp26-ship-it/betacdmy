@@ -187,7 +187,13 @@ If logs show `Connection terminated` or migration errors → delete old Postgres
 | `TENANT_DATABASE_URL_TEMPLATE` | Optional if `DATABASE_URL` is set — auto-derived as `.../{db}` |
 | `PROVISIONING_ADMIN_DATABASE_URL` | Optional — defaults to `DATABASE_URL` for `CREATE DATABASE` |
 
-**Tenant subdomain note:** Railway `*.up.railway.app` hosts do **not** support wildcard DNS for `tenant.your-app.up.railway.app`. For real tenant URLs, attach a custom domain with wildcard DNS (e.g. `*.betacdmy.com`) and set `MAIN_DOMAIN=betacdmy.com`.
+**Tenant subdomain note:** Railway TLS covers `*.up.railway.app` (**one label only**). Nested hosts like `academy.betacdmy-production.up.railway.app` cause `NET::ERR_CERT_COMMON_NAME_INVALID`.
+
+On Railway the app uses path-based academy URLs instead:
+
+`https://betacdmy-production.up.railway.app/t/{subdomain}`
+
+For classic host subdomains (`academy.betacdmy.com`) attach a custom domain with wildcard DNS/SSL and set `MAIN_DOMAIN=betacdmy.com`.
 
 ---
 

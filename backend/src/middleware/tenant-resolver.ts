@@ -3,6 +3,13 @@ import { centralPool, TenantRow } from '../central-db.js';
 import { isValidSubdomain } from '../utils/subdomain-validator.js';
 import { getTenantPool } from '../services/db-manager.js';
 import { createErrorResponse } from '../utils/error-messages.js';
+import {
+  TENANT_SUBDOMAIN_COOKIE,
+  TENANT_SUBDOMAIN_HEADER,
+  extractTenantPathSubdomain,
+  supportsHostSubdomainTenants,
+  stripTenantPathPrefix
+} from '../../../utils/platform-host.js';
 
 export type TenantContext = TenantRow & { connectionString?: string };
 
@@ -159,6 +166,13 @@ declare module 'express-serve-static-core' {
 export const extractSubdomain = (host?: string | null): string | null => {
   if (!host) return null;
   const hostname = host.split(':')[0].toLowerCase();
+  // Nested Railway hosts are not valid tenant hosts (TLS cannot cover them).
+  if (!supportsHostSubdomainTenants(hostname, {
+    railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN,
+    mainDomain: process.env.MAIN_DOMAIN
+  })) {
+    return null;
+  }
   const mainDomain = (process.env.MAIN_DOMAIN || 'betacdmy.com').toLowerCase().replace(/^www\./, '');
   if (!hostname.endsWith(mainDomain)) return null;
   const remainder = hostname.slice(0, -mainDomain.length).replace(/\.$/, '');
@@ -182,6 +196,48 @@ const getEffectiveHost = (req: Request): string | undefined => {
     if (first) return first;
   }
   return req.headers.host;
+};
+
+const readCookieValue = (req: Request, name: string): string | null => {
+  const raw = req.headers.cookie;
+  if (!raw) return null;
+  const parts = String(raw).split(';');
+  for (const part of parts) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) {
+      return decodeURIComponent(rest.join('=') || '') || null;
+    }
+  }
+  return null;
+};
+
+/**
+ * Resolve tenant slug from host subdomain, /t/{sub} path, header, or cookie.
+ * Path/header/cookie are used on Railway apex hosts where nested DNS TLS is impossible.
+ */
+export const resolveTenantSlug = (req: Request): string | null => {
+  const effectiveHost = getEffectiveHost(req);
+  const hostSubdomain = extractSubdomain(effectiveHost);
+  if (hostSubdomain) return hostSubdomain;
+
+  const pathSubdomain = extractTenantPathSubdomain(req.path || req.url || '');
+  if (pathSubdomain) return pathSubdomain;
+
+  const headerRaw = req.headers[TENANT_SUBDOMAIN_HEADER];
+  const headerValue = Array.isArray(headerRaw) ? headerRaw[0] : headerRaw;
+  if (headerValue && typeof headerValue === 'string' && headerValue.trim()) {
+    return headerValue.trim().toLowerCase();
+  }
+
+  // Cookie is only for API calls under a path-tenant SPA session (Host stays apex on Railway).
+  const requestPath = req.path || '';
+  const isApiPath = requestPath.startsWith('/api') || requestPath.startsWith('/saas/api');
+  if (isApiPath) {
+    const cookieValue = readCookieValue(req, TENANT_SUBDOMAIN_COOKIE);
+    if (cookieValue) return cookieValue.trim().toLowerCase();
+  }
+
+  return null;
 };
 
 const normalizeHost = (host?: string | null): string | null => {
@@ -209,7 +265,22 @@ const attachTenantContext = async (req: Request, res: Response, { requireTenant 
   const host = normalizeHost(effectiveHost);
   const normalizedHost = host ? host.replace(/^www\./, '') : null;
   const hostWithWww = normalizedHost ? `www.${normalizedHost}` : null;
-  const subdomain = extractSubdomain(effectiveHost);
+  const subdomain = resolveTenantSlug(req);
+
+  // Keep SPA/API paths clean for downstream handlers when using /t/{sub}/...
+  const pathSubdomain = extractTenantPathSubdomain(req.path || '');
+  if (pathSubdomain && req.url) {
+    const strippedPath = stripTenantPathPrefix(req.path, pathSubdomain);
+    const queryIndex = req.url.indexOf('?');
+    const query = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
+    req.url = `${strippedPath}${query}`;
+    // Express caches req.path from original URL; overwrite via private field when available.
+    try {
+      (req as any)._parsedUrl = undefined;
+    } catch {
+      // ignore
+    }
+  }
 
   if (!subdomain && !normalizedHost) {
     if (requireTenant) {
@@ -265,7 +336,11 @@ const attachTenantContext = async (req: Request, res: Response, { requireTenant 
     );
 
     if (!result.rowCount) {
-      if (!requireTenant) {
+      // Explicit tenant slug via /t/{sub}, header, or cookie must not silently fall back to main site.
+      const explicitTenantRequested = Boolean(
+        pathSubdomain || req.headers[TENANT_SUBDOMAIN_HEADER]
+      );
+      if (!requireTenant && !explicitTenantRequested) {
         return true;
       }
       if (isApiRequest(req)) {

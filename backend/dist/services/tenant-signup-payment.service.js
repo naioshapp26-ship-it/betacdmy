@@ -2,6 +2,7 @@ import { centralPool } from '../central-db.js';
 import { PaymentConfigService } from './payment-config.service.js';
 import { PaymentService } from './payment.service.js';
 import { SubscriptionService } from './subscription.service.js';
+import { buildTenantPublicUrl } from '../../../utils/platform-host.js';
 /**
  * Service for handling tenant signup payments
  * Works with central payment gateway configuration
@@ -12,11 +13,11 @@ export class TenantSignupPaymentService {
     subscriptionService;
     static TRIAL_PERIOD_DAYS = 14;
     getFrontendBaseUrl() {
-        const raw = process.env.FRONTEND_URL || 'https://betacdmy.com.vendoworld.com';
+        const raw = process.env.FRONTEND_URL || 'https://www.betacdmy.com';
         return raw.replace(/\/+$/, '');
     }
     getMainDomain() {
-        const raw = process.env.MAIN_DOMAIN || process.env.VITE_MAIN_DOMAIN || 'betacdmy.com.vendoworld.com';
+        const raw = process.env.MAIN_DOMAIN || process.env.VITE_MAIN_DOMAIN || 'betacdmy.com';
         return raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '').replace(/^www\./, '');
     }
     getProtocol() {
@@ -305,7 +306,15 @@ export class TenantSignupPaymentService {
                 ['billing_cycle', billingCycle],
                 ['signup_source', 'saas'],
                 ['app_url', appUrl],
-                ['tenant_url', `${protocol}://${subdomain}.${mainDomain}`]
+                [
+                    'tenant_url',
+                    buildTenantPublicUrl({
+                        subdomain,
+                        mainDomain,
+                        host: process.env.RAILWAY_PUBLIC_DOMAIN || mainDomain,
+                        protocol
+                    }) || `${protocol}://${subdomain}.${mainDomain}`
+                ]
             ];
             for (const [key, value] of entries) {
                 const normalized = this.normalizeMetadataValue(value);

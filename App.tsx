@@ -480,13 +480,21 @@ const hasStoredPwaPromptFlag = () => {
 const App: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { subdomain: tenantSubdomain, mainDomain, isMainSite, config: tenantConfig, loading: tenantLoading, notFound: tenantNotFound } = useTenant();
+    const { subdomain: tenantSubdomain, mainDomain, isMainSite, tenantUrlMode, tenantPathPrefix, config: tenantConfig, loading: tenantLoading, notFound: tenantNotFound } = useTenant();
     const { notify, confirm, prompt } = useNotification();
     const normalizedPath = useMemo(() => normalizePath(location.pathname), [location.pathname]);
     const isSaasRoute = normalizedPath === '/saas' || normalizedPath.startsWith('/saas/');
-    const tenantBasePath = isSaasRoute && isMainSite ? '/saas' : '';
+    const tenantBasePath = isSaasRoute && isMainSite ? '/saas' : (tenantPathPrefix || '');
     const experiencePath = useMemo(() => {
         if (!isSaasRoute) {
+            // Path-based Railway tenants: /t/{sub}/dashboard → /dashboard
+            if (tenantPathPrefix && normalizedPath.startsWith(`${tenantPathPrefix}/`)) {
+                const trimmed = normalizedPath.slice(tenantPathPrefix.length) || '/';
+                return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+            }
+            if (tenantPathPrefix && normalizedPath === tenantPathPrefix) {
+                return '/';
+            }
             const tenantPrefix = tenantSubdomain ? `/${tenantSubdomain}/` : null;
             // Only strip path-based tenant prefixes when the URL contains an explicit
             // `/{tenant}/...` segment. Do not strip plain routes like `/dashboard`.
@@ -498,7 +506,7 @@ const App: React.FC = () => {
         }
         const trimmed = normalizedPath.slice(5) || '/';
         return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-    }, [isSaasRoute, normalizedPath, tenantSubdomain]);
+    }, [isSaasRoute, normalizedPath, tenantSubdomain, tenantPathPrefix]);
     const tenantBranding = tenantConfig?.branding || null;
     const tenantPricing = tenantConfig?.pricing || null;
     const tenantDisplayName = useMemo(() => {
@@ -3807,7 +3815,7 @@ const App: React.FC = () => {
                             : 'This subdomain is not registered on our platform. Please check the URL or contact support.'}
                     </p>
                     <a
-                        href={`https://${mainDomain}`}
+                        href={tenantUrlMode === 'path' ? '/' : `https://${mainDomain}`}
                         className="inline-block bg-red-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-950 transition-colors"
                     >
                         {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}

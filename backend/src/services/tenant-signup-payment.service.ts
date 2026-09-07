@@ -2,6 +2,7 @@ import { centralPool } from '../central-db.js';
 import { PaymentConfigService } from './payment-config.service.js';
 import { PaymentService } from './payment.service.js';
 import { SubscriptionService } from './subscription.service.js';
+import { buildTenantPublicUrl } from '../../../utils/platform-host.js';
 
 export type PaymentGateway = 'stripe' | 'paypal';
 
@@ -412,7 +413,15 @@ export class TenantSignupPaymentService {
         ['billing_cycle', billingCycle],
         ['signup_source', 'saas'],
         ['app_url', appUrl],
-        ['tenant_url', `${protocol}://${subdomain}.${mainDomain}`]
+        [
+          'tenant_url',
+          buildTenantPublicUrl({
+            subdomain,
+            mainDomain,
+            host: process.env.RAILWAY_PUBLIC_DOMAIN || mainDomain,
+            protocol
+          }) || `${protocol}://${subdomain}.${mainDomain}`
+        ]
       ];
 
       for (const [key, value] of entries) {

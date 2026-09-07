@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { getTenantPool } from './db-manager.js';
 import { centralPool } from '../central-db.js';
 import { PaymentConfigService } from './payment-config.service.js';
+import { buildTenantPublicUrl } from '../../../utils/platform-host.js';
 const paymentConfigService = new PaymentConfigService();
 /**
  * Virtual tenant row for central domain (main platform) course payments
@@ -78,16 +79,24 @@ export async function createCourseCheckoutSession(data) {
     };
     // Create checkout session
     const protocol = process.env.PROTOCOL || 'https';
-    const mainDomain = process.env.MAIN_DOMAIN || 'betacdmy.com.vendoworld.com';
+    const mainDomain = process.env.MAIN_DOMAIN || 'betacdmy.com';
+    const publicHost = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.FRONTEND_URL || mainDomain;
     const isLocalFrontend = /localhost|127\.0\.0\.1/.test(frontendBaseUrl);
     let tenantOrigin;
     if (isCentral) {
-        tenantOrigin = isLocalFrontend ? frontendBaseUrl : `${protocol}://www.${mainDomain}`;
+        tenantOrigin = isLocalFrontend
+            ? frontendBaseUrl
+            : `${protocol}://${String(publicHost).replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
     }
     else {
         tenantOrigin = isLocalFrontend
             ? frontendBaseUrl
-            : `${protocol}://${tenantSlug}.${mainDomain}`;
+            : buildTenantPublicUrl({
+                subdomain: tenantSlug,
+                mainDomain,
+                host: String(publicHost).replace(/^https?:\/\//, '').replace(/\/+$/, ''),
+                protocol
+            }) || `${protocol}://${tenantSlug}.${mainDomain}`;
     }
     const session = await stripe.checkout.sessions.create({
         mode: 'payment', // One-time payment for course

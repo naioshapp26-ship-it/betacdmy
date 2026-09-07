@@ -6,6 +6,13 @@ import {
   normalizeMainDomain,
   resolveMainDomainForHost
 } from '../utils/resolveMainDomain';
+import {
+  TENANT_PATH_PREFIX,
+  TENANT_SUBDOMAIN_COOKIE,
+  TENANT_SUBDOMAIN_HEADER,
+  extractTenantPathSubdomain,
+  supportsHostSubdomainTenants
+} from '../utils/platform-host.js';
 
 type TenantConfig = {
   id?: string;
@@ -36,10 +43,20 @@ const normalizeTenantConfig = (value: any): TenantConfig => {
   };
 };
 
+const setTenantCookie = (subdomain: string | null) => {
+  if (typeof document === 'undefined') return;
+  if (subdomain) {
+    document.cookie = `${TENANT_SUBDOMAIN_COOKIE}=${encodeURIComponent(subdomain)}; path=/; SameSite=Lax`;
+  } else {
+    document.cookie = `${TENANT_SUBDOMAIN_COOKIE}=; path=/; Max-Age=0; SameSite=Lax`;
+  }
+};
+
 export function useTenant() {
   // Compute subdomain first so loading can be initialised correctly below
-  const { subdomain, mainDomain, isMainSite } = useMemo(() => {
+  const { subdomain, mainDomain, isMainSite, tenantUrlMode } = useMemo(() => {
     const host = typeof window !== 'undefined' ? normalizeHost(window.location.hostname) : '';
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
     const envMainDomainRaw = (import.meta as any)?.env?.VITE_MAIN_DOMAIN;
     const envMainDomain = envMainDomainRaw ? normalizeMainDomain(envMainDomainRaw) : null;
     const isLocalHost = host === 'localhost' || host === '127.0.0.1';
@@ -48,28 +65,49 @@ export function useTenant() {
       : normalizeMainDomain(envMainDomain || defaultMainDomain);
 
     if (!host) {
-      return { subdomain: null, mainDomain: main, isMainSite: true };
+      return { subdomain: null, mainDomain: main, isMainSite: true, tenantUrlMode: 'path' as const };
     }
 
     if (isLocalHost) {
+      const pathTenant = extractTenantPathSubdomain(pathname);
+      if (pathTenant) {
+        return { subdomain: pathTenant, mainDomain: main, isMainSite: false, tenantUrlMode: 'path' as const };
+      }
       const devTenant = (import.meta as any)?.env?.VITE_DEV_TENANT_SUBDOMAIN || null;
       return {
         subdomain: devTenant,
         mainDomain: main,
-        isMainSite: !devTenant
+        isMainSite: !devTenant,
+        tenantUrlMode: 'path' as const
+      };
+    }
+
+    // Railway (and other hosts without wildcard TLS): path-based tenants.
+    if (!supportsHostSubdomainTenants(host)) {
+      const pathTenant = extractTenantPathSubdomain(pathname);
+      return {
+        subdomain: pathTenant,
+        mainDomain: main,
+        isMainSite: !pathTenant,
+        tenantUrlMode: 'path' as const
       };
     }
 
     if (!host.endsWith(main)) {
-      return { subdomain: null, mainDomain: main, isMainSite: true };
+      return { subdomain: null, mainDomain: main, isMainSite: true, tenantUrlMode: 'host' as const };
     }
 
     const withoutDomain = host.slice(0, -main.length).replace(/\.$/, '');
     if (!withoutDomain || withoutDomain === 'www') {
-      return { subdomain: null, mainDomain: main, isMainSite: true };
+      // Apex host may still use /t/{sub} during migration.
+      const pathTenant = extractTenantPathSubdomain(pathname);
+      if (pathTenant) {
+        return { subdomain: pathTenant, mainDomain: main, isMainSite: false, tenantUrlMode: 'path' as const };
+      }
+      return { subdomain: null, mainDomain: main, isMainSite: true, tenantUrlMode: 'host' as const };
     }
 
-    return { subdomain: withoutDomain, mainDomain: main, isMainSite: false };
+    return { subdomain: withoutDomain, mainDomain: main, isMainSite: false, tenantUrlMode: 'host' as const };
   }, []);
 
   const [config, setConfig] = useState<TenantConfig | null>(null);
@@ -79,6 +117,10 @@ export function useTenant() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    setTenantCookie(subdomain);
+  }, [subdomain]);
 
   useEffect(() => {
     if (!subdomain && !isMainSite) return;
@@ -91,7 +133,9 @@ export function useTenant() {
       }
       try {
         if (subdomain) {
-          const res = await fetch('/api/tenant/config');
+          const res = await fetch('/api/tenant/config', {
+            headers: { [TENANT_SUBDOMAIN_HEADER]: subdomain }
+          });
           if (res.status === 404) {
             if (!abort) {
               setNotFound(true);
@@ -148,6 +192,8 @@ export function useTenant() {
     subdomain,
     mainDomain,
     isMainSite,
+    tenantUrlMode,
+    tenantPathPrefix: subdomain && tenantUrlMode === 'path' ? `${TENANT_PATH_PREFIX}/${subdomain}` : '',
     config,
     loading,
     notFound,
@@ -156,4 +202,3 @@ export function useTenant() {
 }
 
 export default useTenant;
-

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { centralPool } from '../central-db.js';
+import { buildTenantPublicUrl } from '../../../utils/platform-host.js';
 /**
  * Email Service - SMTP-based email sending
  *
@@ -151,6 +152,13 @@ export class EmailService {
      */
     async sendProvisioningWelcome(options) {
         const { to, tenantName, subdomain, adminName = 'Admin' } = options;
+        const accessUrl = buildTenantPublicUrl({
+            subdomain,
+            mainDomain: process.env.MAIN_DOMAIN || 'betacdmy.com',
+            host: process.env.RAILWAY_PUBLIC_DOMAIN || process.env.MAIN_DOMAIN || 'betacdmy.com',
+            protocol: process.env.PROTOCOL || 'https',
+            railwayPublicDomain: process.env.RAILWAY_PUBLIC_DOMAIN
+        }) || `https://${subdomain}.${process.env.MAIN_DOMAIN || 'betacdmy.com'}`;
         const subject = `Welcome to ${tenantName} - Your LMS is Ready!`;
         const text = `
 Hello ${adminName},
@@ -162,7 +170,7 @@ Your Learning Management System has been successfully provisioned and is ready t
 Tenant Details:
 - Company Name: ${tenantName}
 - Subdomain: ${subdomain}
-- Access URL: https://${subdomain}.yourdomain.com
+- Access URL: ${accessUrl}
 
 You can now log in with the credentials you provided during registration.
 
@@ -209,7 +217,7 @@ The LMS Team
       <div class="details">
         <p><strong>Company Name:</strong> ${tenantName}</p>
         <p><strong>Subdomain:</strong> ${subdomain}</p>
-        <p><strong>Access URL:</strong> <a href="https://${subdomain}.yourdomain.com">https://${subdomain}.yourdomain.com</a></p>
+        <p><strong>Access URL:</strong> <a href="${accessUrl}">${accessUrl}</a></p>
       </div>
       
       <p>You can now log in with the credentials you provided during registration.</p>
@@ -224,7 +232,7 @@ The LMS Team
       </div>
       
       <center>
-        <a href="https://${subdomain}.yourdomain.com" class="button">Access Your Dashboard</a>
+        <a href="${accessUrl}" class="button">Access Your Dashboard</a>
       </center>
       
       <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
