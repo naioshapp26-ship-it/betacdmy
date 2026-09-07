@@ -4,6 +4,7 @@ import { isValidSubdomain } from '../utils/subdomain-validator.js';
 import { getTenantPool } from '../services/db-manager.js';
 import { createErrorResponse } from '../utils/error-messages.js';
 import {
+  TENANT_PATH_PREFIX,
   TENANT_SUBDOMAIN_COOKIE,
   TENANT_SUBDOMAIN_HEADER,
   extractTenantPathSubdomain,
@@ -17,7 +18,8 @@ export type TenantContext = TenantRow & { connectionString?: string };
  * Helper to determine if the request is for an API endpoint
  */
 const isApiRequest = (req: Request): boolean => {
-  return req.path.startsWith('/api/') || req.path.startsWith('/saas/');
+  const fullPath = String(req.originalUrl || req.url || req.path || '').split('?')[0];
+  return fullPath.startsWith('/api/') || fullPath.startsWith('/saas/') || fullPath.startsWith('/saas/api/');
 };
 
 /**
@@ -220,7 +222,7 @@ export const resolveTenantSlug = (req: Request): string | null => {
   const hostSubdomain = extractSubdomain(effectiveHost);
   if (hostSubdomain) return hostSubdomain;
 
-  const pathSubdomain = extractTenantPathSubdomain(req.path || req.url || '');
+  const pathSubdomain = extractTenantPathSubdomain(req.originalUrl || req.path || req.url || '');
   if (pathSubdomain) return pathSubdomain;
 
   const headerRaw = req.headers[TENANT_SUBDOMAIN_HEADER];
@@ -230,8 +232,8 @@ export const resolveTenantSlug = (req: Request): string | null => {
   }
 
   // Cookie is only for API calls under a path-tenant SPA session (Host stays apex on Railway).
-  const requestPath = req.path || '';
-  const isApiPath = requestPath.startsWith('/api') || requestPath.startsWith('/saas/api');
+  const fullPath = String(req.originalUrl || req.url || req.path || '').split('?')[0];
+  const isApiPath = fullPath.startsWith('/api') || fullPath.startsWith('/saas/api');
   if (isApiPath) {
     const cookieValue = readCookieValue(req, TENANT_SUBDOMAIN_COOKIE);
     if (cookieValue) return cookieValue.trim().toLowerCase();
@@ -268,17 +270,29 @@ const attachTenantContext = async (req: Request, res: Response, { requireTenant 
   const subdomain = resolveTenantSlug(req);
 
   // Keep SPA/API paths clean for downstream handlers when using /t/{sub}/...
-  const pathSubdomain = extractTenantPathSubdomain(req.path || '');
+  const pathSubdomain = extractTenantPathSubdomain(req.originalUrl || req.path || '');
   if (pathSubdomain && req.url) {
-    const strippedPath = stripTenantPathPrefix(req.path, pathSubdomain);
-    const queryIndex = req.url.indexOf('?');
-    const query = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
-    req.url = `${strippedPath}${query}`;
-    // Express caches req.path from original URL; overwrite via private field when available.
-    try {
-      (req as any)._parsedUrl = undefined;
-    } catch {
-      // ignore
+    // Only rewrite when the tenant prefix is on the current URL path (not only originalUrl after mount).
+    const rawPath = String(req.path || '');
+    if (rawPath.startsWith(`${TENANT_PATH_PREFIX}/`) || String(req.originalUrl || '').startsWith(`${TENANT_PATH_PREFIX}/`)) {
+      const strippedPath = stripTenantPathPrefix(
+        rawPath.startsWith(`${TENANT_PATH_PREFIX}/`) ? rawPath : String(req.originalUrl || '').split('?')[0],
+        pathSubdomain
+      );
+      const queryIndex = req.url.indexOf('?');
+      const query = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
+      // When middleware runs on a mounted router, rewrite only if this request still includes /t/.
+      if (String(req.originalUrl || '').includes(`${TENANT_PATH_PREFIX}/${pathSubdomain}`)) {
+        // Do not rewrite mounted /api paths.
+        if (!String(req.originalUrl || '').startsWith('/api') && !String(req.originalUrl || '').startsWith('/saas/api')) {
+          req.url = `${strippedPath}${query}`;
+          try {
+            (req as any)._parsedUrl = undefined;
+          } catch {
+            // ignore
+          }
+        }
+      }
     }
   }
 
