@@ -768,6 +768,8 @@ app.post('/api/auth/login', loginRateLimiter, authController.login);
 app.post('/api/auth/logout', authController.logout);
 app.get('/api/auth/me', requireAuth, authController.getCurrentUser);
 app.post('/api/auth/refresh', authController.refreshAccessToken);
+app.get('/api/auth/demo-status', authController.demoStatus);
+app.post('/api/auth/demo-login', loginRateLimiter, authController.demoLogin);
 app.post('/api/auth/forgot-password', loginRateLimiter, forgotPassword);
 app.post('/api/auth/reset-password', resetPassword);
 
@@ -776,6 +778,8 @@ app.post('/api/v1/auth/login', loginRateLimiter, authController.login);
 app.post('/api/v1/auth/logout', authController.logout);
 app.get('/api/v1/auth/me', requireAuth, authController.getCurrentUser);
 app.post('/api/v1/auth/refresh', authController.refreshAccessToken);
+app.get('/api/v1/auth/demo-status', authController.demoStatus);
+app.post('/api/v1/auth/demo-login', loginRateLimiter, authController.demoLogin);
 app.post('/api/v1/auth/forgot-password', loginRateLimiter, forgotPassword);
 app.post('/api/v1/auth/reset-password', resetPassword);
 

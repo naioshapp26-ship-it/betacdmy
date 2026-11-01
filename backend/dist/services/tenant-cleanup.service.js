@@ -301,7 +301,7 @@ export class TenantCleanupService {
             // Archive tenant_admins
             await client.query(`
         CREATE TABLE IF NOT EXISTS archived_tenant_admins (
-          id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
           tenant_id UUID NOT NULL,
           email VARCHAR(255) NOT NULL,
           first_name VARCHAR(100),
@@ -425,7 +425,7 @@ export class TenantCleanupService {
             // Create cleanup_logs table if it doesn't exist
             await this.central.query(`
         CREATE TABLE IF NOT EXISTS cleanup_logs (
-          id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
           tenant_id UUID,
           action VARCHAR(100) NOT NULL,
           details JSONB,

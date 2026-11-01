@@ -1,11 +1,9 @@
 import { centralPool } from '../central-db.js';
 import dotenv from 'dotenv';
 import { normalizeAIProvider } from '../utils/ai-provider.js';
+import { decryptField, encryptField } from '../utils/field-encryption.js';
 dotenv.config();
-/**
- * Encryption password for pgp_sym_encrypt/decrypt
- * In production, this should be a strong secret stored securely
- */
+/** Application-level field encryption (no pgcrypto extension required). */
 const getEncryptionKey = () => process.env.AI_CONFIG_ENCRYPTION_KEY ||
     process.env.PAYMENT_CONFIG_ENCRYPTION_KEY ||
     process.env.TENANT_DB_ENCRYPTION_KEY ||
@@ -31,20 +29,14 @@ export class AIConfigService {
           ai_enabled,
           ai_provider,
           ai_model,
-          CASE 
-            WHEN api_key IS NULL THEN NULL 
-            ELSE pgp_sym_decrypt(api_key, $1) 
-          END AS api_key,
-          CASE 
-            WHEN api_secret IS NULL THEN NULL 
-            ELSE pgp_sym_decrypt(api_secret, $1) 
-          END AS api_secret,
+          api_key,
+          api_secret,
           max_tokens,
           temperature,
           custom_config
         FROM ai_config
         WHERE id = 1
-      `, [getEncryptionKey()]);
+      `);
             if (result.rows.length === 0) {
                 console.warn(`[AIConfig] No configuration found for ${context.type}`);
                 return this.getEmptyConfig();
@@ -55,12 +47,23 @@ export class AIConfigService {
                 ai_provider: row.ai_provider,
                 has_api_key: !!row.api_key
             });
+            const encryptionKey = getEncryptionKey();
+            const decryptedApiKey = row.api_key && Buffer.isBuffer(row.api_key)
+                ? decryptField(row.api_key, encryptionKey)
+                : row.api_key
+                    ? String(row.api_key)
+                    : null;
+            const decryptedApiSecret = row.api_secret && Buffer.isBuffer(row.api_secret)
+                ? decryptField(row.api_secret, encryptionKey)
+                : row.api_secret
+                    ? String(row.api_secret)
+                    : null;
             return {
                 aiEnabled: row.ai_enabled || false,
                 aiProvider: normalizeAIProvider(row.ai_provider),
                 aiModel: row.ai_model || 'gemini-2.5-flash',
-                apiKey: row.api_key ? Buffer.from(row.api_key).toString('utf-8') : null,
-                apiSecret: row.api_secret ? Buffer.from(row.api_secret).toString('utf-8') : null,
+                apiKey: decryptedApiKey,
+                apiSecret: decryptedApiSecret,
                 maxTokens: row.max_tokens || 4096,
                 temperature: parseFloat(row.temperature) || 0.7,
                 customConfig: row.custom_config || {},
@@ -133,9 +136,10 @@ export class AIConfigService {
                 console.warn('[AIConfig] Failed to verify updated_by actor:', lookupError.message);
             }
         }
+        const encryptionKey = getEncryptionKey();
         const updates = [];
-        const values = [getEncryptionKey()];
-        let paramIndex = 2;
+        const values = [];
+        let paramIndex = 1;
         // Build dynamic UPDATE query
         if (config.aiEnabled !== undefined) {
             updates.push(`ai_enabled = $${paramIndex++}`);
@@ -154,8 +158,8 @@ export class AIConfigService {
                 updates.push(`api_key = NULL`);
             }
             else {
-                updates.push(`api_key = pgp_sym_encrypt($${paramIndex++}, $1)`);
-                values.push(config.apiKey);
+                updates.push(`api_key = $${paramIndex++}`);
+                values.push(encryptField(config.apiKey, encryptionKey));
             }
         }
         if (config.apiSecret !== undefined) {
@@ -163,8 +167,8 @@ export class AIConfigService {
                 updates.push(`api_secret = NULL`);
             }
             else {
-                updates.push(`api_secret = pgp_sym_encrypt($${paramIndex++}, $1)`);
-                values.push(config.apiSecret);
+                updates.push(`api_secret = $${paramIndex++}`);
+                values.push(encryptField(config.apiSecret, encryptionKey));
             }
         }
         if (config.maxTokens !== undefined) {

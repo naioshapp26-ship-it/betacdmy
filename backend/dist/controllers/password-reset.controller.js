@@ -14,7 +14,7 @@ const getEffectiveHost = (req) => {
             return first;
         }
     }
-    return req.headers.host || process.env.MAIN_DOMAIN || 'betacdmy.com.vendoworld.com';
+    return req.headers.host || process.env.MAIN_DOMAIN || 'betacdmy.com';
 };
 const getProtocol = (req) => {
     const forwarded = req.headers['x-forwarded-proto'];

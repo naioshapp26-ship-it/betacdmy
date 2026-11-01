@@ -1,7 +1,7 @@
 import { centralPool } from '../central-db.js';
+import { decryptField, encryptField } from '../utils/field-encryption.js';
 /**
- * Encryption password for pgp_sym_encrypt/decrypt
- * In production, this should be a strong secret stored securely
+ * Application-level field encryption (no pgcrypto extension required).
  */
 const ENCRYPTION_KEY = process.env.PAYMENT_CONFIG_ENCRYPTION_KEY || 'default-encryption-key-change-in-production';
 /**
@@ -43,8 +43,7 @@ export class PaymentConfigService {
                     // PostgreSQL returns BYTEA columns as Buffer objects
                     const encryptedData = row.stripe_secret_key;
                     if (Buffer.isBuffer(encryptedData)) {
-                        const decryptResult = await pool.query('SELECT pgp_sym_decrypt($1, $2) as decrypted', [encryptedData, ENCRYPTION_KEY]);
-                        row.stripe_secret_key = decryptResult.rows[0].decrypted.toString();
+                        row.stripe_secret_key = decryptField(encryptedData, ENCRYPTION_KEY);
                         console.log('[PaymentConfig] Successfully decrypted Stripe secret key. Starts with:', row.stripe_secret_key?.substring(0, 7));
                     }
                     else {
@@ -61,8 +60,7 @@ export class PaymentConfigService {
             if (row.stripe_webhook_secret) {
                 try {
                     if (Buffer.isBuffer(row.stripe_webhook_secret)) {
-                        const decryptResult = await pool.query('SELECT pgp_sym_decrypt($1, $2) as decrypted', [row.stripe_webhook_secret, ENCRYPTION_KEY]);
-                        row.stripe_webhook_secret = decryptResult.rows[0].decrypted.toString();
+                        row.stripe_webhook_secret = decryptField(row.stripe_webhook_secret, ENCRYPTION_KEY);
                         console.log('[PaymentConfig] Successfully decrypted Stripe webhook secret');
                     }
                 }
@@ -75,8 +73,7 @@ export class PaymentConfigService {
             if (row.paypal_secret_key) {
                 try {
                     if (Buffer.isBuffer(row.paypal_secret_key)) {
-                        const decryptResult = await pool.query('SELECT pgp_sym_decrypt($1, $2) as decrypted', [row.paypal_secret_key, ENCRYPTION_KEY]);
-                        row.paypal_secret_key = decryptResult.rows[0].decrypted.toString();
+                        row.paypal_secret_key = decryptField(row.paypal_secret_key, ENCRYPTION_KEY);
                         console.log('[PaymentConfig] Successfully decrypted PayPal secret key');
                     }
                 }
@@ -89,8 +86,7 @@ export class PaymentConfigService {
             if (row.visa_secret_key) {
                 try {
                     if (Buffer.isBuffer(row.visa_secret_key)) {
-                        const decryptResult = await pool.query('SELECT pgp_sym_decrypt($1, $2) as decrypted', [row.visa_secret_key, ENCRYPTION_KEY]);
-                        row.visa_secret_key = decryptResult.rows[0].decrypted.toString();
+                        row.visa_secret_key = decryptField(row.visa_secret_key, ENCRYPTION_KEY);
                     }
                 }
                 catch (err) {
@@ -167,8 +163,8 @@ export class PaymentConfigService {
             throw new Error('Database pool not available for payment configuration');
         }
         const updates = [];
-        const values = [ENCRYPTION_KEY];
-        let paramIndex = 2;
+        const values = [];
+        let paramIndex = 1;
         // Build dynamic UPDATE query
         if (config.stripeEnabled !== undefined) {
             updates.push(`stripe_enabled = $${paramIndex++}`);
@@ -179,13 +175,13 @@ export class PaymentConfigService {
             values.push(config.stripePublicKey || null);
         }
         if (config.stripeSecretKey !== undefined) {
-            updates.push(`stripe_secret_key = pgp_sym_encrypt($${paramIndex++}, $1)`);
-            values.push(config.stripeSecretKey || null);
+            updates.push(`stripe_secret_key = $${paramIndex++}`);
+            values.push(config.stripeSecretKey ? encryptField(config.stripeSecretKey, ENCRYPTION_KEY) : null);
         }
         // stripe_webhook_secret for both central and tenant
         if (config.stripeWebhookSecret !== undefined) {
-            updates.push(`stripe_webhook_secret = pgp_sym_encrypt($${paramIndex++}, $1)`);
-            values.push(config.stripeWebhookSecret || null);
+            updates.push(`stripe_webhook_secret = $${paramIndex++}`);
+            values.push(config.stripeWebhookSecret ? encryptField(config.stripeWebhookSecret, ENCRYPTION_KEY) : null);
         }
         if (config.paypalEnabled !== undefined) {
             updates.push(`paypal_enabled = $${paramIndex++}`);
@@ -196,8 +192,8 @@ export class PaymentConfigService {
             values.push(config.paypalClientId || null);
         }
         if (config.paypalSecretKey !== undefined) {
-            updates.push(`paypal_secret_key = pgp_sym_encrypt($${paramIndex++}, $1)`);
-            values.push(config.paypalSecretKey || null);
+            updates.push(`paypal_secret_key = $${paramIndex++}`);
+            values.push(config.paypalSecretKey ? encryptField(config.paypalSecretKey, ENCRYPTION_KEY) : null);
         }
         if (config.visaEnabled !== undefined) {
             updates.push(`visa_enabled = $${paramIndex++}`);
@@ -208,8 +204,8 @@ export class PaymentConfigService {
             values.push(config.visaPublicKey || null);
         }
         if (config.visaSecretKey !== undefined) {
-            updates.push(`visa_secret_key = pgp_sym_encrypt($${paramIndex++}, $1)`);
-            values.push(config.visaSecretKey || null);
+            updates.push(`visa_secret_key = $${paramIndex++}`);
+            values.push(config.visaSecretKey ? encryptField(config.visaSecretKey, ENCRYPTION_KEY) : null);
         }
         // Stripe price IDs and plan amounts only exist in central table (for tenant signup)
         // Tenant tables only have basic payment gateway config for course purchases

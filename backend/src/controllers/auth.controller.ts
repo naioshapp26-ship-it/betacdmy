@@ -233,8 +233,12 @@ export const login = async (req: Request, res: Response) => {
  * POST /api/auth/logout - Clear authentication tokens
  */
 export const logout = async (req: Request, res: Response) => {
+  // Clear with the same options used when setting cookies, plus a permissive
+  // fallback so older cookies (e.g. missing secure flag in mixed envs) are cleared.
   res.clearCookie('refreshToken', COOKIE_OPTIONS);
   res.clearCookie('accessToken', COOKIE_OPTIONS);
+  res.clearCookie('refreshToken', { ...COOKIE_OPTIONS, secure: false });
+  res.clearCookie('accessToken', { ...COOKIE_OPTIONS, secure: false });
   
   const lang = req.headers['accept-language']?.includes('ar') ? 'ar' : 'en';
   const message = lang === 'ar' 
@@ -242,6 +246,75 @@ export const logout = async (req: Request, res: Response) => {
     : 'Logged out successfully';
   
   res.json({ message });
+};
+
+const isDemoLoginEnabled = () => {
+  const flag = (process.env.DEMO_LOGIN_ENABLED || '').toLowerCase();
+  return flag === 'true' || flag === '1' || flag === 'yes';
+};
+
+/**
+ * GET /api/auth/demo-status - Whether gated one-click demo login is available.
+ * Never returns passwords or emails.
+ */
+export const demoStatus = async (_req: Request, res: Response) => {
+  if (!isDemoLoginEnabled()) {
+    return res.json({ enabled: false, roles: [] as string[] });
+  }
+
+  const roles: string[] = [];
+  if (process.env.DEMO_ADMIN_EMAIL && process.env.DEMO_ADMIN_PASSWORD) {
+    roles.push('ADMIN');
+  }
+  if (process.env.DEMO_STUDENT_EMAIL && process.env.DEMO_STUDENT_PASSWORD) {
+    roles.push('STUDENT');
+  }
+
+  res.json({ enabled: roles.length > 0, roles });
+};
+
+/**
+ * POST /api/auth/demo-login - Server-side demo login gated by DEMO_LOGIN_ENABLED.
+ * Credentials live only in server env vars — never in the frontend bundle.
+ * Body: { role: 'ADMIN' | 'STUDENT' }
+ */
+export const demoLogin = async (req: Request, res: Response) => {
+  if (!isDemoLoginEnabled()) {
+    const lang = req.headers['accept-language']?.includes('ar') ? 'ar' : 'en';
+    const message =
+      lang === 'ar' ? 'تسجيل الدخول التجريبي غير مفعّل' : 'Demo login is disabled';
+    return res.status(403).json(createErrorResponse('errors.authForbidden', req, message));
+  }
+
+  const role = String(req.body?.role || '').toUpperCase();
+  let email = '';
+  let password = '';
+
+  if (role === 'ADMIN') {
+    email = process.env.DEMO_ADMIN_EMAIL || '';
+    password = process.env.DEMO_ADMIN_PASSWORD || '';
+  } else if (role === 'STUDENT' || role === 'CUSTOMER') {
+    email = process.env.DEMO_STUDENT_EMAIL || '';
+    password = process.env.DEMO_STUDENT_PASSWORD || '';
+  } else {
+    const lang = req.headers['accept-language']?.includes('ar') ? 'ar' : 'en';
+    const message =
+      lang === 'ar' ? 'دور تجريبي غير صالح' : 'Invalid demo role';
+    return res.status(400).json(createErrorResponse('errors.authInvalidCredentials', req, message));
+  }
+
+  if (!email || !password) {
+    const lang = req.headers['accept-language']?.includes('ar') ? 'ar' : 'en';
+    const message =
+      lang === 'ar'
+        ? 'حساب تجريبي غير مُعد لهذا الدور'
+        : 'Demo account is not configured for this role';
+    return res.status(503).json(createErrorResponse('errors.apiServerError', req, message));
+  }
+
+  // Reuse the standard login path so cookies, RBAC, and audits stay identical.
+  req.body = { ...(req.body || {}), email, password };
+  return login(req, res);
 };
 
 /**

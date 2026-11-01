@@ -11,10 +11,13 @@ CREATE TABLE IF NOT EXISTS media_settings (
 -- Create index for faster tenant lookups
 CREATE INDEX IF NOT EXISTS idx_media_settings_tenant_id ON media_settings(tenant_id);
 
--- Insert default global setting (NULL tenant_id means global/super admin setting)
-INSERT INTO media_settings (tenant_id, allow_direct_upload) 
-VALUES (NULL, true)
-ON CONFLICT (tenant_id) DO NOTHING;
+-- Insert default global setting (NULL tenant_id means global/super admin setting).
+-- Postgres UNIQUE(tenant_id) does not treat NULLs as equal, so avoid ON CONFLICT(tenant_id).
+INSERT INTO media_settings (tenant_id, allow_direct_upload)
+SELECT NULL, true
+WHERE NOT EXISTS (
+  SELECT 1 FROM media_settings WHERE tenant_id IS NULL
+);
 
 -- Add comment
 COMMENT ON TABLE media_settings IS 'Controls whether users can upload media directly or must use external links';

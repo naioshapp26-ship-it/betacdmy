@@ -2038,46 +2038,27 @@ const App: React.FC = () => {
   };
 
     // --- AUTH ---
-    const demoPasswordsByRole: Record<UserRole, string | undefined> = {
-        [UserRole.STUDENT]: 'student123',
-        [UserRole.MEMBER]: 'member123',
-        [UserRole.INSTRUCTOR]: 'instructor123',
-        [UserRole.ADMIN]: 'admin123',
-        [UserRole.SUPER_ADMIN]: '12345678',
-        [UserRole.VISITOR]: 'visitor123',
-        [UserRole.GUEST]: undefined
-    };
-
-    const handleLogin = async (role: UserRole) => {
-        const candidate = platformUsers.find((u) => u.role === role);
-        if (!candidate?.email) {
-            notify('warning', lang === 'ar' ? 'لا يوجد مستخدم لهذا الدور بعد.' : 'No user exists for this role yet.');
-            return;
-        }
-
-        const password = demoPasswordsByRole[role];
-        if (!password) {
-            notify('error', lang === 'ar' ? 'بيانات تسجيل الدخول غير متاحة لهذا الدور.' : 'Demo credentials are not available for this role.');
-            return;
-        }
-
+    // One-click demo login is server-gated (DEMO_LOGIN_ENABLED). Passwords never ship in the frontend.
+    const handleDemoLogin = async (role: UserRole.ADMIN | UserRole.STUDENT) => {
         try {
-            const response = await fetch('/api/login', {
+            const response = await fetch('/api/auth/demo-login', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept-Language': lang === 'ar' ? 'ar' : 'en'
                 },
-                body: JSON.stringify({ email: candidate.email, password })
+                body: JSON.stringify({ role })
             });
 
             if (!response.ok) {
-                const error = await response.json();
+                const error = await response.json().catch(() => ({}));
                 notify('error', error.error || getErrorMessage('errors.authLoginFailed', lang as 'en' | 'ar', 'Login failed'));
                 return;
             }
 
-            const userData: User = await response.json();
+            const data = await response.json();
+            const userData: User = data.user || data;
             handleUserUpdate(userData);
             setView(ViewState.DASHBOARD);
         } catch (error) {
@@ -2086,11 +2067,23 @@ const App: React.FC = () => {
         }
     };
 
-  const handleLogout = () => {
-    localStorage.removeItem('betacademy_user');
-    clearGuestMode(); // Clear guest session on logout
-    setUser(null);
-    setView(ViewState.HOME);
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept-Language': lang === 'ar' ? 'ar' : 'en'
+        }
+      });
+    } catch (error) {
+      console.error('Logout API error:', error);
+    } finally {
+      localStorage.removeItem('betacademy_user');
+      clearGuestMode(); // Clear guest session on logout
+      setUser(null);
+      setView(ViewState.HOME);
+    }
   };
 
   // Guest mode handlers
@@ -2644,6 +2637,22 @@ const App: React.FC = () => {
       const [password, setPassword] = useState('');
       const [isLoggingIn, setIsLoggingIn] = useState(false);
       const [showPassword, setShowPassword] = useState(false);
+      const [demoRoles, setDemoRoles] = useState<string[]>([]);
+      const [demoLoggingIn, setDemoLoggingIn] = useState<string | null>(null);
+
+      useEffect(() => {
+          let cancelled = false;
+          fetch('/api/auth/demo-status', { credentials: 'include' })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((payload) => {
+                  if (cancelled || !payload?.enabled || !Array.isArray(payload.roles)) return;
+                  setDemoRoles(payload.roles.map((role: string) => String(role).toUpperCase()));
+              })
+              .catch(() => undefined);
+          return () => {
+              cancelled = true;
+          };
+      }, []);
 
       const handleEmailLogin = async (e: React.FormEvent) => {
           e.preventDefault();
@@ -2656,6 +2665,7 @@ const App: React.FC = () => {
               setIsLoggingIn(true);
               const response = await fetch('/api/auth/login', {
                   method: 'POST',
+                  credentials: 'include',
                   headers: {
                       'Content-Type': 'application/json',
                       'Accept-Language': lang === 'ar' ? 'ar' : 'en'
@@ -2678,6 +2688,15 @@ const App: React.FC = () => {
               notify('error', getErrorMessage('errors.authLoginFailed', lang as 'en' | 'ar', 'An error occurred during login'));
           } finally {
               setIsLoggingIn(false);
+          }
+      };
+
+      const runDemoLogin = async (role: UserRole.ADMIN | UserRole.STUDENT) => {
+          try {
+              setDemoLoggingIn(role);
+              await handleDemoLogin(role);
+          } finally {
+              setDemoLoggingIn(null);
           }
       };
 
@@ -2730,7 +2749,7 @@ const App: React.FC = () => {
                       </div>
                       <button
                           type="submit"
-                          disabled={isLoggingIn}
+                          disabled={isLoggingIn || Boolean(demoLoggingIn)}
                           className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-900 hover:bg-red-950 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
                       >
                           {isLoggingIn ? (lang === 'ar' ? 'جاري تسجيل الدخول...' : 'Logging in...') : t.login}
@@ -2745,6 +2764,40 @@ const App: React.FC = () => {
                           </button>
                       </div>
                   </form>
+
+                  {demoRoles.length > 0 && (
+                      <div className="space-y-2 border-t border-zinc-100 pt-4">
+                          <p className="text-center text-xs text-zinc-500">
+                              {lang === 'ar' ? 'دخول تجريبي (بيئة الاختبار فقط)' : 'Demo login (test environments only)'}
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                              {demoRoles.includes('ADMIN') && (
+                                  <button
+                                      type="button"
+                                      disabled={isLoggingIn || Boolean(demoLoggingIn)}
+                                      onClick={() => void runDemoLogin(UserRole.ADMIN)}
+                                      className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                      {demoLoggingIn === UserRole.ADMIN
+                                          ? (lang === 'ar' ? 'جاري الدخول...' : 'Signing in...')
+                                          : (lang === 'ar' ? 'دخول أدمن تجريبي' : 'Demo Admin')}
+                                  </button>
+                              )}
+                              {demoRoles.includes('STUDENT') && (
+                                  <button
+                                      type="button"
+                                      disabled={isLoggingIn || Boolean(demoLoggingIn)}
+                                      onClick={() => void runDemoLogin(UserRole.STUDENT)}
+                                      className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                      {demoLoggingIn === UserRole.STUDENT
+                                          ? (lang === 'ar' ? 'جاري الدخول...' : 'Signing in...')
+                                          : (lang === 'ar' ? 'دخول عميل تجريبي' : 'Demo Customer')}
+                                  </button>
+                              )}
+                          </div>
+                      </div>
+                  )}
 
                   <div className="text-center text-sm mt-4">
                       <span className="text-zinc-600">{t.noAccount} </span>
