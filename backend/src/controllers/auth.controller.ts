@@ -3,6 +3,11 @@ import { centralPool } from '../central-db.js';
 import { generateAccessToken, generateRefreshToken, verifyToken, TokenPayload } from '../middleware/auth.middleware.js';
 import { verifyPassword, hashPassword } from '../utils/password.utils.js';
 import { createErrorResponse } from '../utils/error-messages.js';
+import {
+  getConfiguredDemoRoles,
+  getDemoAccount,
+  isDemoLoginEnabled
+} from '../utils/demo-auth-config.js';
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -248,34 +253,18 @@ export const logout = async (req: Request, res: Response) => {
   res.json({ message });
 };
 
-const isDemoLoginEnabled = () => {
-  const flag = (process.env.DEMO_LOGIN_ENABLED || '').toLowerCase();
-  return flag === 'true' || flag === '1' || flag === 'yes';
-};
-
 /**
  * GET /api/auth/demo-status - Whether gated one-click demo login is available.
  * Never returns passwords or emails.
  */
 export const demoStatus = async (_req: Request, res: Response) => {
-  if (!isDemoLoginEnabled()) {
-    return res.json({ enabled: false, roles: [] as string[] });
-  }
-
-  const roles: string[] = [];
-  if (process.env.DEMO_ADMIN_EMAIL && process.env.DEMO_ADMIN_PASSWORD) {
-    roles.push('ADMIN');
-  }
-  if (process.env.DEMO_STUDENT_EMAIL && process.env.DEMO_STUDENT_PASSWORD) {
-    roles.push('STUDENT');
-  }
-
+  const roles = getConfiguredDemoRoles();
   res.json({ enabled: roles.length > 0, roles });
 };
 
 /**
- * POST /api/auth/demo-login - Server-side demo login gated by DEMO_LOGIN_ENABLED.
- * Credentials live only in server env vars — never in the frontend bundle.
+ * POST /api/auth/demo-login - Server-side demo login (Railway-enabled by default).
+ * Passwords are derived server-side from JWT_SECRET or DEMO_* env — never shipped to the frontend.
  * Body: { role: 'ADMIN' | 'STUDENT' }
  */
 export const demoLogin = async (req: Request, res: Response) => {
@@ -286,24 +275,26 @@ export const demoLogin = async (req: Request, res: Response) => {
     return res.status(403).json(createErrorResponse('errors.authForbidden', req, message));
   }
 
-  const role = String(req.body?.role || '').toUpperCase();
-  let email = '';
-  let password = '';
+  const roleRaw = String(req.body?.role || '').toUpperCase();
+  const role =
+    roleRaw === 'ADMIN' ? 'ADMIN' : roleRaw === 'STUDENT' || roleRaw === 'CUSTOMER' ? 'STUDENT' : null;
 
-  if (role === 'ADMIN') {
-    email = process.env.DEMO_ADMIN_EMAIL || '';
-    password = process.env.DEMO_ADMIN_PASSWORD || '';
-  } else if (role === 'STUDENT' || role === 'CUSTOMER') {
-    email = process.env.DEMO_STUDENT_EMAIL || '';
-    password = process.env.DEMO_STUDENT_PASSWORD || '';
-  } else {
+  if (!role) {
     const lang = req.headers['accept-language']?.includes('ar') ? 'ar' : 'en';
     const message =
       lang === 'ar' ? 'دور تجريبي غير صالح' : 'Invalid demo role';
     return res.status(400).json(createErrorResponse('errors.authInvalidCredentials', req, message));
   }
 
-  if (!email || !password) {
+  try {
+    const account = getDemoAccount(role);
+    // Ensure accounts exist right before login (covers first request after deploy).
+    const { ensureDemoAccounts } = await import('../services/demo-accounts.service.js');
+    await ensureDemoAccounts();
+    req.body = { ...(req.body || {}), email: account.email, password: account.password };
+    return login(req, res);
+  } catch (error) {
+    console.error('Demo login setup failed:', error);
     const lang = req.headers['accept-language']?.includes('ar') ? 'ar' : 'en';
     const message =
       lang === 'ar'
@@ -311,10 +302,6 @@ export const demoLogin = async (req: Request, res: Response) => {
         : 'Demo account is not configured for this role';
     return res.status(503).json(createErrorResponse('errors.apiServerError', req, message));
   }
-
-  // Reuse the standard login path so cookies, RBAC, and audits stay identical.
-  req.body = { ...(req.body || {}), email, password };
-  return login(req, res);
 };
 
 /**
