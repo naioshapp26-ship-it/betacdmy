@@ -25,6 +25,7 @@ import adminSubscriptionsRouter from './backend/dist/controllers/admin-subscript
 import { tenantResolver, optionalTenantResolver } from './backend/dist/middleware/tenant-resolver.js';
 import { ProvisioningService } from './backend/dist/services/provisioning.service.js';
 import { runCentralMigrations } from './backend/dist/services/central-migrator.js';
+import { ensureDemoAccounts } from './backend/dist/services/demo-accounts.service.js';
 import { centralPool } from './backend/dist/central-db.js';
 import { resolveSeoForPath } from './backend/dist/services/seo-resolver.js';
 import { loginRateLimiter, tenantApiRateLimiter, generalApiRateLimiter } from './backend/dist/middleware/rate-limiter.js';
@@ -363,6 +364,16 @@ try {
   console.error('');
   console.error('Railway: verify PostgreSQL is linked (Variables → DATABASE_URL reference).');
   process.exit(1);
+}
+
+try {
+  await ensureDemoAccounts();
+} catch (demoSeedError) {
+  // Never block boot if demo seeding fails — production traffic must keep serving.
+  console.warn(
+    '[demo-accounts] Startup seed failed:',
+    demoSeedError instanceof Error ? demoSeedError.message : demoSeedError
+  );
 }
 
 const app = express();
